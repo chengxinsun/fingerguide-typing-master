@@ -4,6 +4,13 @@ import { Keyboard } from './components/Keyboard';
 import { Stats } from './components/Stats';
 import { KEY_MAP, PRACTICE_TEXTS, Finger, Category, PracticeItem } from './constants';
 import { Keyboard as KeyboardIcon, RefreshCw, Zap, Target, Timer, LogIn, LogOut, User as UserIcon, ChevronDown, BarChart3, UserPlus, Users } from 'lucide-react';
+import { ModeSelector } from './components/ModeSelector';
+import { TimeChallengeModal } from './components/modals/TimeChallengeModal';
+import { CustomTextModal } from './components/modals/CustomTextModal';
+import { HeatmapModal } from './components/modals/HeatmapModal';
+import { ProgressModal } from './components/modals/ProgressModal';
+import { PracticeMode, DailyRecord } from './constants';
+import { getTodayString } from './utils/dateUtils';
 
 interface PracticeSession {
   wpm: number;
@@ -19,6 +26,8 @@ export interface LocalUser {
   totalTime: number;
   sessionCount: number;
   recentSessions?: PracticeSession[];
+  keyMistakes?: Record<string, number>;
+  dailyRecords?: DailyRecord[];
 }
 
 export default function App() {
@@ -41,9 +50,20 @@ export default function App() {
   const [pressedKey, setPressedKey] = useState<string | null>(null);
   const [mistakes, setMistakes] = useState(0);
   const [showStats, setShowStats] = useState(false);
+  const [practiceMode, setPracticeMode] = useState<PracticeMode>('normal');
+  const [timeChallengeDuration, setTimeChallengeDuration] = useState<60 | 180 | 300>(60);
+  const [customText, setCustomText] = useState<string>('');
+  const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
+  const [showTimeChallengeModal, setShowTimeChallengeModal] = useState(false);
+  const [showCustomTextModal, setShowCustomTextModal] = useState(false);
+  const [showHeatmapModal, setShowHeatmapModal] = useState(false);
+  const [showProgressModal, setShowProgressModal] = useState(false);
+  const [mistakeKeys, setMistakeKeys] = useState<Record<string, number>>({});
 
   const filteredTexts = PRACTICE_TEXTS.filter(t => t.category === selectedCategory);
-  const currentPractice = filteredTexts[currentTextIndex] || filteredTexts[0];
+  const currentPractice = practiceMode === 'custom' && customText
+    ? { en: customText, zh: 'Custom text practice', category: 'Custom' as const }
+    : filteredTexts[currentTextIndex] || filteredTexts[0];
   const text = currentPractice.en;
   const translation = currentPractice.zh;
 
@@ -55,11 +75,20 @@ export default function App() {
     const savedUsers = localStorage.getItem('typing_users');
     if (savedUsers) {
       const parsed = JSON.parse(savedUsers);
-      setUsers(parsed);
+      // Migrate old data to include new fields
+      const migrated = parsed.map((u: any) => ({
+        ...u,
+        keyMistakes: u.keyMistakes || {},
+        dailyRecords: u.dailyRecords || [],
+      }));
+      setUsers(migrated);
       const lastUserId = localStorage.getItem('last_user_id');
       if (lastUserId) {
-        const lastUser = parsed.find((u: LocalUser) => u.id === lastUserId);
-        if (lastUser) setCurrentUser(lastUser);
+        const lastUser = migrated.find((u: LocalUser) => u.id === lastUserId);
+        if (lastUser) {
+          setCurrentUser(lastUser);
+          setMistakeKeys(lastUser.keyMistakes || {});
+        }
       }
     }
   }, []);
@@ -103,46 +132,103 @@ export default function App() {
   };
 
   const reset = useCallback(() => {
-    const nextIndex = Math.floor(Math.random() * filteredTexts.length);
-    setCurrentTextIndex(nextIndex);
-    setUserInput("");
-    setStartTime(null);
-    setWpm(0);
-    setAccuracy(100);
-    setIsFinished(false);
-    setMistakes(0);
-  }, [filteredTexts]);
+    if (practiceMode === 'custom' && customText) {
+      setUserInput('');
+      setStartTime(null);
+      setWpm(0);
+      setAccuracy(100);
+      setIsFinished(false);
+      setMistakes(0);
+      setMistakeKeys({});
+      setTimeRemaining(null);
+    } else if (practiceMode === 'time-challenge') {
+      const nextIndex = Math.floor(Math.random() * filteredTexts.length);
+      setCurrentTextIndex(nextIndex);
+      setUserInput('');
+      setStartTime(null);
+      setWpm(0);
+      setAccuracy(100);
+      setIsFinished(false);
+      setMistakes(0);
+      setMistakeKeys({});
+      setTimeRemaining(timeChallengeDuration);
+    } else {
+      const nextIndex = Math.floor(Math.random() * filteredTexts.length);
+      setCurrentTextIndex(nextIndex);
+      setUserInput('');
+      setStartTime(null);
+      setWpm(0);
+      setAccuracy(100);
+      setIsFinished(false);
+      setMistakes(0);
+      setMistakeKeys({});
+      setTimeRemaining(null);
+    }
+  }, [filteredTexts, practiceMode, customText, timeChallengeDuration]);
 
   const saveSession = () => {
     if (!currentUser || !startTime) return;
     const timeElapsed = (Date.now() - startTime) / 1000;
-    
+
+    const today = getTodayString();
+    const existingRecord = currentUser.dailyRecords?.find((r: DailyRecord) => r.date === today);
+
+    let updatedDailyRecords: DailyRecord[] = currentUser.dailyRecords || [];
+    if (existingRecord) {
+      const totalSessions = existingRecord.sessionCount + 1;
+      updatedDailyRecords = updatedDailyRecords.map((r: DailyRecord) =>
+        r.date === today
+          ? {
+              ...r,
+              avgWpm: Math.round((r.avgWpm * r.sessionCount + wpm) / totalSessions),
+              avgAccuracy: Math.round((r.avgAccuracy * r.sessionCount + accuracy) / totalSessions),
+              sessionCount: totalSessions,
+            }
+          : r
+      );
+    } else {
+      updatedDailyRecords = [
+        ...updatedDailyRecords,
+        { date: today, avgWpm: wpm, avgAccuracy: accuracy, sessionCount: 1 },
+      ];
+    }
+
+    updatedDailyRecords = updatedDailyRecords.slice(-90);
+
+    const updatedKeyMistakes = { ...(currentUser.keyMistakes || {}) };
+    Object.entries(mistakeKeys).forEach(([key, count]) => {
+      updatedKeyMistakes[key] = (updatedKeyMistakes[key] || 0) + count;
+    });
+
+    const newSession: PracticeSession = {
+      wpm,
+      accuracy,
+      timestamp: Date.now()
+    };
+
     const updatedUsers = users.map(u => {
       if (u.id === currentUser.id) {
-        const newSession: PracticeSession = {
-          wpm,
-          accuracy,
-          timestamp: Date.now()
-        };
-        
         const recent = u.recentSessions || [];
-        const updatedRecent = [newSession, ...recent].slice(0, 3);
-        
         return {
           ...u,
           totalWpm: u.totalWpm + wpm,
           totalAccuracy: u.totalAccuracy + accuracy,
           totalTime: u.totalTime + timeElapsed,
           sessionCount: u.sessionCount + 1,
-          recentSessions: updatedRecent
+          recentSessions: [newSession, ...recent].slice(0, 3),
+          dailyRecords: updatedDailyRecords,
+          keyMistakes: updatedKeyMistakes,
         };
       }
       return u;
     });
-    
+
     setUsers(updatedUsers);
     const updatedUser = updatedUsers.find(u => u.id === currentUser.id);
-    if (updatedUser) setCurrentUser(updatedUser);
+    if (updatedUser) {
+      setCurrentUser(updatedUser);
+      setMistakeKeys({});
+    }
   };
 
   useEffect(() => {
@@ -230,6 +316,11 @@ export default function App() {
           
           if (!isCorrect) {
             setMistakes(prev => prev + 1);
+            const key = e.key.toLowerCase();
+            setMistakeKeys(prev => ({
+              ...prev,
+              [key]: (prev[key] || 0) + 1,
+            }));
           }
 
           const newInput = userInput + e.key;
@@ -254,7 +345,7 @@ export default function App() {
         const timeElapsed = (Date.now() - startTime) / 1000 / 60;
         const wordsTyped = userInput.length / 5;
         setWpm(Math.round(wordsTyped / timeElapsed) || 0);
-        
+
         const correctChars = userInput.split('').filter((char, i) => char === text[i]).length;
         const totalTyped = userInput.length;
         setAccuracy(totalTyped === 0 ? 100 : Math.round((correctChars / totalTyped) * 100));
@@ -262,6 +353,23 @@ export default function App() {
       return () => clearInterval(interval);
     }
   }, [startTime, isFinished, userInput, text]);
+
+  // Time challenge countdown
+  useEffect(() => {
+    if (practiceMode === 'time-challenge' && startTime && !isFinished) {
+      const timer = setInterval(() => {
+        const elapsed = Math.floor((Date.now() - startTime) / 1000);
+        const remaining = timeChallengeDuration - elapsed;
+        if (remaining <= 0) {
+          setIsFinished(true);
+          setTimeRemaining(0);
+        } else {
+          setTimeRemaining(remaining);
+        }
+      }, 1000);
+      return () => clearInterval(timer);
+    }
+  }, [practiceMode, startTime, isFinished, timeChallengeDuration]);
 
   if (!currentUser) {
     return (
@@ -349,34 +457,61 @@ export default function App() {
           
           <div className="h-6 w-px bg-gray-200 hidden sm:block" />
 
-          <div className="relative group">
-            <button className="flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors text-sm font-medium text-gray-600">
-              {selectedCategory} <ChevronDown size={14} />
-            </button>
-            <div className="absolute top-full left-0 mt-1 w-48 bg-white border border-gray-100 rounded-xl shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all p-1 z-[110]">
-              {(['Basic', 'KET', 'PET', 'FCE', 'Quotes', 'Classics'] as Category[]).map(cat => (
-                <button 
-                  key={cat}
-                  onClick={() => { 
-                    const newFiltered = PRACTICE_TEXTS.filter(t => t.category === cat);
-                    const randomIndex = Math.floor(Math.random() * newFiltered.length);
-                    setSelectedCategory(cat); 
-                    setCurrentTextIndex(randomIndex); 
-                    setUserInput(""); 
-                    setStartTime(null); 
-                    setIsFinished(false); 
-                  }}
-                  className={`w-full text-left px-4 py-2 rounded-lg text-sm transition-colors ${selectedCategory === cat ? 'bg-blue-50 text-blue-600 font-bold' : 'hover:bg-gray-50 text-gray-600'}`}
-                >
-                  {cat}
-                </button>
-              ))}
+          <ModeSelector
+            currentMode={practiceMode}
+            onModeChange={(mode) => {
+              if (mode === 'time-challenge') {
+                setShowTimeChallengeModal(true);
+              } else if (mode === 'custom') {
+                setShowCustomTextModal(true);
+              } else {
+                setPracticeMode('normal');
+                setCustomText('');
+                reset();
+              }
+            }}
+          />
+
+          <div className="h-6 w-px bg-gray-200" />
+
+          {practiceMode !== 'custom' && (
+            <div className="relative group">
+              <button className="flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors text-sm font-medium text-gray-600">
+                {selectedCategory} <ChevronDown size={14} />
+              </button>
+              <div className="absolute top-full left-0 mt-1 w-48 bg-white border border-gray-100 rounded-xl shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all p-1 z-[110]">
+                {(['Basic', 'KET', 'PET', 'FCE', 'Quotes', 'Classics'] as Category[]).map(cat => (
+                  <button
+                    key={cat}
+                    onClick={() => {
+                      const newFiltered = PRACTICE_TEXTS.filter(t => t.category === cat);
+                      const randomIndex = Math.floor(Math.random() * newFiltered.length);
+                      setSelectedCategory(cat);
+                      setCurrentTextIndex(randomIndex);
+                      setUserInput("");
+                      setStartTime(null);
+                      setIsFinished(false);
+                    }}
+                    className={`w-full text-left px-4 py-2 rounded-lg text-sm transition-colors ${selectedCategory === cat ? 'bg-blue-50 text-blue-600 font-bold' : 'hover:bg-gray-50 text-gray-600'}`}
+                  >
+                    {cat}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
         <div className="flex items-center gap-6">
           <div className="hidden md:flex gap-6">
+            {practiceMode === 'time-challenge' && timeRemaining !== null && (
+              <div className="flex flex-col items-center">
+                <span className="text-[9px] uppercase tracking-widest text-gray-400 font-bold">Time</span>
+                <span className={`text-lg font-mono font-bold ${timeRemaining < 10 ? 'text-red-600' : 'text-gray-700'}`}>
+                  {Math.floor(timeRemaining / 60)}:{String(timeRemaining % 60).padStart(2, '0')}
+                </span>
+              </div>
+            )}
             <div className="flex flex-col items-center">
               <span className="text-[9px] uppercase tracking-widest text-gray-400 font-bold">Speed</span>
               <span className="text-lg font-mono font-bold text-gray-700">{wpm} <span className="text-[10px] font-normal text-gray-400">WPM</span></span>
@@ -418,7 +553,13 @@ export default function App() {
               exit={{ height: 0, opacity: 0 }}
               className="w-full overflow-hidden"
             >
-              <Stats {...currentUser} />
+              <Stats
+                {...currentUser}
+                keyMistakes={currentUser.keyMistakes || {}}
+                dailyRecords={currentUser.dailyRecords || []}
+                onOpenHeatmap={() => setShowHeatmapModal(true)}
+                onOpenProgress={() => setShowProgressModal(true)}
+              />
               <div className="h-12" />
             </motion.div>
           )}
@@ -568,6 +709,53 @@ export default function App() {
           <span>Daily Practice</span>
         </div>
       </footer>
+
+      {/* Modals */}
+      <TimeChallengeModal
+        isOpen={showTimeChallengeModal}
+        onClose={() => setShowTimeChallengeModal(false)}
+        onStart={(duration) => {
+          setPracticeMode('time-challenge');
+          setTimeChallengeDuration(duration);
+          setTimeRemaining(duration);
+          setShowTimeChallengeModal(false);
+          reset();
+        }}
+      />
+
+      <CustomTextModal
+        isOpen={showCustomTextModal}
+        onClose={() => setShowCustomTextModal(false)}
+        onStart={(text) => {
+          setPracticeMode('custom');
+          setCustomText(text);
+          setShowCustomTextModal(false);
+          reset();
+        }}
+      />
+
+      <HeatmapModal
+        isOpen={showHeatmapModal}
+        onClose={() => setShowHeatmapModal(false)}
+        keyMistakes={currentUser?.keyMistakes || {}}
+        onReset={() => {
+          const updatedUsers = users.map(u =>
+            u.id === currentUser?.id ? { ...u, keyMistakes: {} } : u
+          );
+          setUsers(updatedUsers);
+          const updatedUser = updatedUsers.find(u => u.id === currentUser?.id);
+          if (updatedUser) {
+            setCurrentUser(updatedUser);
+            setMistakeKeys({});
+          }
+        }}
+      />
+
+      <ProgressModal
+        isOpen={showProgressModal}
+        onClose={() => setShowProgressModal(false)}
+        dailyRecords={currentUser?.dailyRecords || []}
+      />
     </div>
   );
 }
