@@ -2,9 +2,10 @@ export const enTranslations = {
   app: { name: 'FingerGuide', tagline: 'Typing Practice Master' },
   nav: { practice: 'Practice', stats: 'Statistics', achievements: 'Achievements', settings: 'Settings' },
   practice: { wpm: 'Speed', accuracy: 'Accuracy', time: 'Time', completed: 'Practice Completed!', continuePrompt: 'Press space or click button to continue', totalTime: 'Total Time', sessions: 'Sessions' },
+  completion: { title: 'Practice Complete!', saved: 'Your progress has been saved.', continue: 'Press space or click to continue', continueButton: 'Continue' },
   mode: { normal: 'Normal Mode', timeChallenge: 'Time Challenge', custom: 'Custom Text', selectDuration: 'Select Duration', start: 'Start', cancel: 'Cancel' },
   user: { createAccount: 'Create Account', selectAccount: 'Select Account', localAccount: 'Local Account', switchAccount: 'Switch Account', enterName: 'Enter your name' },
-  stats: { avgWpm: 'Average Speed', avgAccuracy: 'Average Accuracy', recentSessions: 'Recent Sessions', errorHeatmap: 'Error Heatmap', progressTrend: 'Progress Trend', clickToExpand: 'Click to expand', noHeatmapData: 'Complete practice to view error patterns', noProgressData: 'Practice daily to view progress' },
+  stats: { avgWpm: 'Average Speed', avgAccuracy: 'Average Accuracy', accuracy: 'Accuracy', recentSessions: 'Recent Sessions', errorHeatmap: 'Error Heatmap', progressTrend: 'Progress Trend', clickToExpand: 'Click to expand', noHeatmapData: 'Complete practice to view error patterns', noProgressData: 'Practice daily to view progress', justNow: 'Just now', ago: 'ago', charsTyped: 'chars typed', currentStreak: 'Day Streak', bestStreak: 'Best Streak' },
   settings: { title: 'Settings', language: 'Language', theme: 'Theme', pet: 'Pet', selectPet: 'Select Pet', selectLanguage: 'Select Language', chinese: '中文', english: 'English' },
   achievements: {
     title: 'Achievements', unlocked: 'Unlocked', locked: 'Locked', reward: 'Reward', xp: 'XP', progress: 'Progress', congrats: 'Congratulations!', autoDismiss: 'Auto-closing in a few seconds...',

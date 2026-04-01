@@ -2,9 +2,10 @@ export const zhTranslations = {
   app: { name: 'FingerGuide', tagline: '打字练习大师' },
   nav: { practice: '练习', stats: '统计', achievements: '成就', settings: '设置' },
   practice: { wpm: '速度', accuracy: '准确率', time: '时间', completed: '练习完成！', continuePrompt: '按空格键或点击按钮继续', totalTime: '总时长', sessions: '练习次数' },
+  completion: { title: '练习完成！', saved: '您的进步已成功保存。', continue: '按空格键或点击按钮继续', continueButton: '继续练习' },
   mode: { normal: '普通模式', timeChallenge: '倒计时模式', custom: '自定义文本', selectDuration: '选择时长', start: '开始', cancel: '取消' },
   user: { createAccount: '创建账户', selectAccount: '选择账户', localAccount: '本地账户', switchAccount: '切换账户', enterName: '输入您的名字' },
-  stats: { avgWpm: '平均速度', avgAccuracy: '平均准确率', recentSessions: '最近练习', errorHeatmap: '错误热力图', progressTrend: '进度趋势', clickToExpand: '点击展开', noHeatmapData: '完成练习查看错误模式', noProgressData: '每日练习查看进度' },
+  stats: { avgWpm: '平均速度', avgAccuracy: '平均准确率', accuracy: '准确率', recentSessions: '最近练习', errorHeatmap: '错误热力图', progressTrend: '进度趋势', clickToExpand: '点击展开', noHeatmapData: '完成练习查看错误模式', noProgressData: '每日练习查看进度', justNow: '刚刚', ago: '前', charsTyped: '已输入字符', currentStreak: '连续天数', bestStreak: '最佳连续' },
   settings: { title: '设置', language: '语言', theme: '主题', pet: '宠物', selectPet: '选择宠物', selectLanguage: '选择语言', chinese: '中文', english: 'English' },
   achievements: {
     title: '成就', unlocked: '已解锁', locked: '未解锁', reward: '奖励', xp: 'XP', progress: '进度', congrats: '恭喜！', autoDismiss: '几秒后自动关闭...',

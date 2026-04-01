@@ -49,9 +49,60 @@ export interface DailyRecord {
   sessionCount: number;
 }
 
+export interface PracticeSession {
+  wpm: number;
+  accuracy: number;
+  timestamp: number;
+}
+
 export interface ExtendedUserStats {
   keyMistakes: Record<string, number>;
   dailyRecords: DailyRecord[];
+}
+
+// Phase 2: User Progress Interface
+export interface UserProgress {
+  totalXP: number;
+  currentLevel: number;
+  unlockedPets: string[];
+  activePet: string | null;
+  currentStreak: number;
+  longestStreak: number;
+  lastPracticeDate: string | null;
+  totalChars: number;
+  totalPracticeTime: number; // in minutes
+}
+
+// Phase 2: Achievement Record Interface
+export interface AchievementRecord {
+  id: string;
+  unlockedAt: number;
+  progress: number;
+}
+
+// Phase 2: User Preferences Interface
+export interface UserPreferences {
+  language: 'zh' | 'en';
+  theme: string;
+  soundEnabled: boolean;
+  showKeyHints: boolean;
+}
+
+// Phase 2: Extended LocalUser interface with new fields
+export interface LocalUser {
+  id: string;
+  name: string;
+  totalWpm: number;
+  totalAccuracy: number;
+  totalTime: number;
+  sessionCount: number;
+  recentSessions?: PracticeSession[];
+  keyMistakes?: Record<string, number>;
+  dailyRecords?: DailyRecord[];
+  // Phase 2 fields
+  progress?: UserProgress;
+  achievements?: AchievementRecord[];
+  preferences?: UserPreferences;
 }
 
 export const TIME_CHALLENGE_OPTIONS = [

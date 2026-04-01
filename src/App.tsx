@@ -2,41 +2,93 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Keyboard } from './components/Keyboard';
 import { Stats } from './components/Stats';
-import { KEY_MAP, PRACTICE_TEXTS, Finger, Category, PracticeItem } from './constants';
-import { Keyboard as KeyboardIcon, RefreshCw, Zap, Target, Timer, LogIn, LogOut, User as UserIcon, ChevronDown, BarChart3, UserPlus, Users } from 'lucide-react';
+import { KEY_MAP, PRACTICE_TEXTS, Finger, Category, PracticeItem, LocalUser, UserProgress, AchievementRecord, UserPreferences, PracticeSession } from './constants';
+import { Keyboard as KeyboardIcon, RefreshCw, Zap, Target, Timer, LogIn, LogOut, User as UserIcon, ChevronDown, BarChart3, UserPlus, Users, Settings, Trophy } from 'lucide-react';
 import { ModeSelector } from './components/ModeSelector';
 import { TimeChallengeModal } from './components/modals/TimeChallengeModal';
 import { CustomTextModal } from './components/modals/CustomTextModal';
 import { HeatmapModal } from './components/modals/HeatmapModal';
 import { ProgressModal } from './components/modals/ProgressModal';
+import { SettingsModal } from './components/modals/SettingsModal';
+import { AchievementsModal } from './components/modals/AchievementsModal';
+import { AchievementUnlockModal } from './components/AchievementUnlockModal';
+import { LevelProgress } from './components/LevelProgress';
+import { PetDisplay } from './components/PetDisplay';
 import { PracticeMode, DailyRecord } from './constants';
 import { getTodayString } from './utils/dateUtils';
 
-interface PracticeSession {
-  wpm: number;
-  accuracy: number;
-  timestamp: number;
+// Phase 2: Contexts
+import { I18nProvider, useI18n } from './contexts/I18nContext';
+import { ProgressProvider, useProgress } from './contexts/ProgressContext';
+import { AchievementProvider, useAchievements } from './contexts/AchievementContext';
+import { ThemeProvider, useTheme } from './contexts/ThemeContext';
+
+// Phase 2: Utils
+import { calculateSessionXP } from './utils/xpCalculator';
+import { UserStats } from './constants/achievements';
+
+// Default progress for new users
+const defaultProgress: UserProgress = {
+  totalXP: 0,
+  currentLevel: 1,
+  unlockedPets: ['snail'],
+  activePet: 'snail',
+  currentStreak: 0,
+  longestStreak: 0,
+  lastPracticeDate: null,
+  totalChars: 0,
+  totalPracticeTime: 0,
+};
+
+const defaultPreferences: UserPreferences = {
+  language: 'zh',
+  theme: 'default',
+  soundEnabled: true,
+  showKeyHints: true,
+};
+
+// Helper function to migrate old user data to new format
+function migrateUserData(user: any): LocalUser {
+  const totalChars = user.totalChars || 0;
+  const totalPracticeTime = user.totalTime ? Math.floor(user.totalTime / 60) : 0;
+
+  // Calculate initial XP from existing stats if not present
+  let totalXP = 0;
+  if (user.progress?.totalXP) {
+    totalXP = user.progress.totalXP;
+  } else {
+    // Calculate from existing stats: chars * 1 + minutes * 10
+    totalXP = totalChars * 1 + totalPracticeTime * 10;
+  }
+
+  return {
+    ...user,
+    keyMistakes: user.keyMistakes || {},
+    dailyRecords: user.dailyRecords || [],
+    progress: user.progress || {
+      ...defaultProgress,
+      totalXP,
+      totalChars,
+      totalPracticeTime,
+    },
+    achievements: user.achievements || [],
+    preferences: user.preferences || defaultPreferences,
+  };
 }
 
-export interface LocalUser {
-  id: string;
-  name: string;
-  totalWpm: number;
-  totalAccuracy: number;
-  totalTime: number;
-  sessionCount: number;
-  recentSessions?: PracticeSession[];
-  keyMistakes?: Record<string, number>;
-  dailyRecords?: DailyRecord[];
-}
+// Inner component that uses the contexts
+function AppContent() {
+  const { t } = useI18n();
+  const { progress, addXP, addPracticeSession, updateStreak } = useProgress();
+  const { achievements, newlyUnlocked, checkAndUnlock, clearNewlyUnlocked } = useAchievements();
+  const { theme } = useTheme();
 
-export default function App() {
   const audioContextRef = useRef<AudioContext | null>(null);
   const [users, setUsers] = useState<LocalUser[]>([]);
   const [currentUser, setCurrentUser] = useState<LocalUser | null>(null);
   const [isCreatingUser, setIsCreatingUser] = useState(false);
   const [newUserName, setNewUserName] = useState("");
-  
+
   const [selectedCategory, setSelectedCategory] = useState<Category>('Basic');
   const [currentTextIndex, setCurrentTextIndex] = useState(() => {
     const initialFiltered = PRACTICE_TEXTS.filter(t => t.category === 'Basic');
@@ -58,10 +110,13 @@ export default function App() {
   const [showCustomTextModal, setShowCustomTextModal] = useState(false);
   const [showHeatmapModal, setShowHeatmapModal] = useState(false);
   const [showProgressModal, setShowProgressModal] = useState(false);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [showAchievementsModal, setShowAchievementsModal] = useState(false);
   const [mistakeKeys, setMistakeKeys] = useState<Record<string, number>>({});
   const [timeChallengeTotalChars, setTimeChallengeTotalChars] = useState(0);
   const [timeChallengeStartTime, setTimeChallengeStartTime] = useState<number | null>(null);
   const [cumulativeWpm, setCumulativeWpm] = useState(0);
+  const [recentAccuracies, setRecentAccuracies] = useState<number[]>([]);
   const timeChallengeTotalCharsRef = useRef(0);
   const userInputRef = useRef("");
 
@@ -90,11 +145,7 @@ export default function App() {
     if (savedUsers) {
       const parsed = JSON.parse(savedUsers);
       // Migrate old data to include new fields
-      const migrated = parsed.map((u: any) => ({
-        ...u,
-        keyMistakes: u.keyMistakes || {},
-        dailyRecords: u.dailyRecords || [],
-      }));
+      const migrated = parsed.map((u: any) => migrateUserData(u));
       setUsers(migrated);
       const lastUserId = localStorage.getItem('last_user_id');
       if (lastUserId) {
@@ -102,6 +153,13 @@ export default function App() {
         if (lastUser) {
           setCurrentUser(lastUser);
           setMistakeKeys(lastUser.keyMistakes || {});
+          // Load recent accuracies from daily records
+          if (lastUser.dailyRecords) {
+            const accuracies = lastUser.dailyRecords.flatMap((r: DailyRecord) =>
+              Array(r.sessionCount).fill(r.avgAccuracy)
+            ).slice(-10);
+            setRecentAccuracies(accuracies);
+          }
         }
       }
     }
@@ -117,16 +175,19 @@ export default function App() {
   const handleCreateUser = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newUserName.trim()) return;
-    
+
     const newUser: LocalUser = {
       id: Date.now().toString(),
       name: newUserName.trim(),
       totalWpm: 0,
       totalAccuracy: 0,
       totalTime: 0,
-      sessionCount: 0
+      sessionCount: 0,
+      progress: { ...defaultProgress },
+      achievements: [],
+      preferences: { ...defaultPreferences },
     };
-    
+
     const updatedUsers = [...users, newUser];
     setUsers(updatedUsers);
     setCurrentUser(newUser);
@@ -138,11 +199,20 @@ export default function App() {
   const handleSelectUser = (user: LocalUser) => {
     setCurrentUser(user);
     localStorage.setItem('last_user_id', user.id);
+    setMistakeKeys(user.keyMistakes || {});
+    // Load recent accuracies
+    if (user.dailyRecords) {
+      const accuracies = user.dailyRecords.flatMap((r: DailyRecord) =>
+        Array(r.sessionCount).fill(r.avgAccuracy)
+      ).slice(-10);
+      setRecentAccuracies(accuracies);
+    }
   };
 
   const handleLogout = () => {
     setCurrentUser(null);
     localStorage.removeItem('last_user_id');
+    setRecentAccuracies([]);
   };
 
   const reset = useCallback(() => {
@@ -156,17 +226,15 @@ export default function App() {
       setMistakeKeys({});
       setTimeRemaining(null);
     } else if (practiceMode === 'time-challenge') {
-      // In time challenge mode, only switch to next text without resetting timer
       const nextIndex = Math.floor(Math.random() * filteredTexts.length);
       setCurrentTextIndex(nextIndex);
       setUserInput('');
-      setStartTime(Date.now()); // Reset start time for accuracy calculation of new text
-      setWpm(0); // Reset current text WPM, cumulative is tracked separately
+      setStartTime(Date.now());
+      setWpm(0);
       setAccuracy(100);
       setIsFinished(false);
       setMistakes(0);
       setMistakeKeys({});
-      // Note: timeRemaining is NOT reset here - timer continues running
     } else {
       const nextIndex = Math.floor(Math.random() * filteredTexts.length);
       setCurrentTextIndex(nextIndex);
@@ -184,8 +252,8 @@ export default function App() {
   const saveSession = () => {
     if (!currentUser || !startTime) return;
     const timeElapsed = (Date.now() - startTime) / 1000;
+    const durationMinutes = timeElapsed / 60;
 
-    // In time challenge mode, use cumulative WPM for the session record
     const sessionWpm = practiceMode === 'time-challenge' ? cumulativeWpm || wpm : wpm;
 
     const today = getTodayString();
@@ -224,6 +292,29 @@ export default function App() {
       timestamp: Date.now()
     };
 
+    // Update recent accuracies for achievement checking
+    const updatedRecentAccuracies = [...recentAccuracies, accuracy].slice(-10);
+    setRecentAccuracies(updatedRecentAccuracies);
+
+    // Calculate XP and update progress
+    const charsTyped = userInput.length;
+    const sessionXP = calculateSessionXP(charsTyped, startTime, Date.now(), sessionWpm);
+    addXP(sessionXP);
+    addPracticeSession(charsTyped, durationMinutes);
+    updateStreak();
+
+    // Check achievements
+    const stats: UserStats = {
+      totalSessions: currentUser.sessionCount + 1,
+      totalChars: (currentUser.progress?.totalChars || 0) + charsTyped,
+      totalPracticeTime: (currentUser.progress?.totalPracticeTime || 0) + durationMinutes,
+      currentStreak: progress.currentStreak,
+      bestWpm: Math.max(sessionWpm, Math.round(currentUser.totalWpm / Math.max(1, currentUser.sessionCount))),
+      lastSessionAccuracy: accuracy,
+      recentAccuracies: updatedRecentAccuracies,
+    };
+    checkAndUnlock(stats);
+
     const updatedUsers = users.map(u => {
       if (u.id === currentUser.id) {
         const recent = u.recentSessions || [];
@@ -236,6 +327,19 @@ export default function App() {
           recentSessions: [newSession, ...recent].slice(0, 3),
           dailyRecords: updatedDailyRecords,
           keyMistakes: updatedKeyMistakes,
+          progress: {
+            ...(u.progress || defaultProgress),
+            totalXP: progress.totalXP + sessionXP,
+            currentLevel: progress.currentLevel,
+            unlockedPets: progress.unlockedPets,
+            activePet: progress.activePet,
+            currentStreak: progress.currentStreak,
+            longestStreak: progress.longestStreak,
+            lastPracticeDate: progress.lastPracticeDate,
+            totalChars: progress.totalChars + charsTyped,
+            totalPracticeTime: progress.totalPracticeTime + durationMinutes,
+          },
+          achievements: achievements,
         };
       }
       return u;
@@ -282,7 +386,6 @@ export default function App() {
       gainNode.connect(audioCtx.destination);
 
       if (isCorrect) {
-        // High-pitched short click for correct key
         oscillator.type = 'sine';
         oscillator.frequency.setValueAtTime(800, audioCtx.currentTime);
         gainNode.gain.setValueAtTime(0.05, audioCtx.currentTime);
@@ -290,7 +393,6 @@ export default function App() {
         oscillator.start();
         oscillator.stop(audioCtx.currentTime + 0.05);
       } else {
-        // Low-pitched buzz for mistake
         oscillator.type = 'sawtooth';
         oscillator.frequency.setValueAtTime(150, audioCtx.currentTime);
         gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
@@ -299,7 +401,6 @@ export default function App() {
         oscillator.stop(audioCtx.currentTime + 0.1);
       }
     } catch (e) {
-      // Audio context might be blocked by browser policy until user interaction
       console.warn("Audio error:", e);
     }
   }, [getAudioContext]);
@@ -312,7 +413,6 @@ export default function App() {
         if (e.key === ' ') {
           e.preventDefault();
           if (practiceMode === 'time-challenge') {
-            // In time challenge mode, space starts a completely new challenge
             const nextIndex = Math.floor(Math.random() * filteredTexts.length);
             setCurrentTextIndex(nextIndex);
             setUserInput('');
@@ -323,8 +423,8 @@ export default function App() {
             setMistakes(0);
             setMistakeKeys({});
             setTimeRemaining(timeChallengeDuration);
-            setTimeChallengeTotalChars(0); // Reset total chars counter
-            setTimeChallengeStartTime(Date.now()); // Reset challenge start time
+            setTimeChallengeTotalChars(0);
+            setTimeChallengeStartTime(Date.now());
             setCumulativeWpm(0);
           } else {
             reset();
@@ -348,7 +448,7 @@ export default function App() {
           const expectedChar = text[userInput.length];
           const isCorrect = e.key === expectedChar;
           playSound(isCorrect);
-          
+
           if (!isCorrect) {
             setMistakes(prev => prev + 1);
             const key = e.key.toLowerCase();
@@ -362,17 +462,14 @@ export default function App() {
           setUserInput(newInput);
           if (newInput.length === text.length) {
             if (practiceMode === 'time-challenge') {
-              // In time challenge, immediately load next text without showing completion screen
               const nextIndex = Math.floor(Math.random() * filteredTexts.length);
               setCurrentTextIndex(nextIndex);
               setUserInput('');
-              setStartTime(Date.now()); // Reset for accuracy tracking of new text
+              setStartTime(Date.now());
               setWpm(0);
               setAccuracy(100);
               setMistakes(0);
-              // Accumulate total characters typed
               setTimeChallengeTotalChars(prev => prev + newInput.length);
-              // Note: Don't reset timer or timeChallengeStartTime here - they continue
             } else {
               setIsFinished(true);
             }
@@ -405,12 +502,10 @@ export default function App() {
     }
   }, [startTime, isFinished, userInput, text]);
 
-  // Cumulative WPM calculation for time challenge mode
   useEffect(() => {
     if (practiceMode === 'time-challenge' && timeChallengeStartTime && !isFinished) {
       const interval = setInterval(() => {
         const totalElapsedMinutes = (Date.now() - timeChallengeStartTime) / 1000 / 60;
-        // Use refs to get latest values
         const totalCharsTyped = timeChallengeTotalCharsRef.current + userInputRef.current.length;
         const newCumulativeWpm = totalElapsedMinutes > 0
           ? Math.round((totalCharsTyped / 5) / totalElapsedMinutes) || 0
@@ -421,15 +516,12 @@ export default function App() {
     }
   }, [practiceMode, timeChallengeStartTime, isFinished]);
 
-  // Time challenge countdown
   useEffect(() => {
     if (practiceMode === 'time-challenge' && timeChallengeStartTime && !isFinished) {
       const timer = setInterval(() => {
         const elapsed = Math.floor((Date.now() - timeChallengeStartTime) / 1000);
         const remaining = timeChallengeDuration - elapsed;
         if (remaining <= 0) {
-          // Calculate final WPM based on total characters typed during the challenge
-          // Use refs to get latest values
           const totalChars = timeChallengeTotalCharsRef.current + userInputRef.current.length;
           const totalMinutes = timeChallengeDuration / 60;
           const finalWpm = Math.round((totalChars / 5) / totalMinutes) || 0;
@@ -448,7 +540,7 @@ export default function App() {
   if (!currentUser) {
     return (
       <div className="min-h-screen bg-[#f8f9fa] flex flex-col items-center justify-center p-6">
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
           className="bg-white p-12 rounded-[40px] shadow-2xl border border-gray-100 flex flex-col items-center max-w-md w-full text-center"
@@ -458,25 +550,25 @@ export default function App() {
           </div>
           <h1 className="text-3xl font-black text-gray-900 mb-2">FingerGuide</h1>
           <p className="text-gray-500 mb-10">Master your typing skills with real-time finger guidance and local progress tracking.</p>
-          
+
           {isCreatingUser ? (
             <form onSubmit={handleCreateUser} className="w-full flex flex-col gap-4">
-              <input 
+              <input
                 autoFocus
-                type="text" 
-                placeholder="Enter your name" 
+                type="text"
+                placeholder="Enter your name"
                 className="w-full px-4 py-3 rounded-xl border-2 border-gray-100 focus:border-blue-600 outline-none transition-all"
                 value={newUserName}
                 onChange={(e) => setNewUserName(e.target.value)}
               />
               <div className="flex gap-2">
-                <button 
+                <button
                   type="submit"
                   className="flex-1 bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 transition-all"
                 >
                   Create Account
                 </button>
-                <button 
+                <button
                   type="button"
                   onClick={() => setIsCreatingUser(false)}
                   className="px-4 py-3 rounded-xl border-2 border-gray-100 font-bold hover:bg-gray-50 transition-all"
@@ -492,7 +584,7 @@ export default function App() {
                   <div className="text-[10px] uppercase tracking-widest text-gray-400 font-bold text-left px-2">Select Account</div>
                   <div className="max-h-48 overflow-y-auto flex flex-col gap-2 p-1">
                     {users.map(u => (
-                      <button 
+                      <button
                         key={u.id}
                         onClick={() => handleSelectUser(u)}
                         className="flex items-center gap-3 p-3 rounded-xl border-2 border-gray-50 hover:border-blue-100 hover:bg-blue-50 transition-all text-left"
@@ -504,7 +596,7 @@ export default function App() {
                   </div>
                 </div>
               )}
-              <button 
+              <button
                 onClick={() => setIsCreatingUser(true)}
                 className="w-full bg-white border-2 border-gray-100 py-4 rounded-2xl font-bold flex items-center justify-center gap-3 hover:bg-gray-50 transition-all shadow-sm"
               >
@@ -528,7 +620,7 @@ export default function App() {
             </div>
             <h1 className="text-lg font-bold tracking-tight text-gray-900 hidden sm:block">FingerGuide</h1>
           </div>
-          
+
           <div className="h-6 w-px bg-gray-200 hidden sm:block" />
 
           <ModeSelector
@@ -600,8 +692,45 @@ export default function App() {
 
           <div className="h-6 w-px bg-gray-200" />
 
+          {/* Phase 2: Level Progress */}
+          <div className="hidden lg:flex">
+            <LevelProgress size="small" showDetails={false} />
+          </div>
+
+          {/* Phase 2: Pet Display */}
+          {progress.activePet && (
+            <div className="hidden lg:block">
+              <PetDisplay
+                petId={progress.activePet}
+                growth={Math.min(progress.totalChars / 10, 100)}
+                size="small"
+                onClick={() => setShowSettingsModal(true)}
+              />
+            </div>
+          )}
+
+          <div className="h-6 w-px bg-gray-200 hidden lg:block" />
+
           <div className="flex items-center gap-3">
-            <button 
+            {/* Phase 2: Settings Button */}
+            <button
+              onClick={() => setShowSettingsModal(true)}
+              className="p-2 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
+              title={t.settings?.title || 'Settings'}
+            >
+              <Settings size={20} />
+            </button>
+
+            {/* Phase 2: Achievements Button */}
+            <button
+              onClick={() => setShowAchievementsModal(true)}
+              className="p-2 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-yellow-600 transition-colors"
+              title={t.achievements?.title || 'Achievements'}
+            >
+              <Trophy size={20} />
+            </button>
+
+            <button
               onClick={() => setShowStats(!showStats)}
               className={`p-2 rounded-lg transition-colors ${showStats ? 'bg-blue-50 text-blue-600' : 'text-gray-400 hover:bg-gray-100'}`}
             >
@@ -623,14 +752,18 @@ export default function App() {
       <main className="max-w-5xl mx-auto py-12 px-6 flex flex-col items-center gap-12">
         <AnimatePresence>
           {showStats && (
-            <motion.div 
+            <motion.div
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: 'auto', opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
               className="w-full overflow-hidden"
             >
               <Stats
-                {...currentUser}
+                totalWpm={currentUser.totalWpm}
+                totalAccuracy={currentUser.totalAccuracy}
+                totalTime={currentUser.totalTime}
+                sessionCount={currentUser.sessionCount}
+                recentSessions={currentUser.recentSessions}
                 keyMistakes={currentUser.keyMistakes || {}}
                 dailyRecords={currentUser.dailyRecords || []}
                 onOpenHeatmap={() => setShowHeatmapModal(true)}
@@ -644,7 +777,7 @@ export default function App() {
         {/* Typing Area */}
         <div className="w-full bg-white rounded-[40px] p-12 shadow-xl border border-gray-100 relative overflow-hidden">
           <div className="absolute top-0 left-0 w-1.5 h-full bg-blue-600 opacity-20" />
-          
+
           <div className="text-2xl leading-relaxed font-mono tracking-wide relative z-10 min-h-[4em]">
             {text.split('').map((char, index) => {
               let color = "text-gray-200";
@@ -667,7 +800,7 @@ export default function App() {
                     <span className="absolute bottom-0 left-0 w-full h-0.5 bg-red-600 opacity-50" />
                   )}
                   {isCurrent && (
-                    <motion.span 
+                    <motion.span
                       layoutId="cursor"
                       className="absolute -bottom-1 left-0 w-full h-0.5 bg-red-600"
                       initial={false}
@@ -687,12 +820,12 @@ export default function App() {
 
           <AnimatePresence>
             {isFinished && (
-              <motion.div 
+              <motion.div
                 initial={{ opacity: 0, backdropFilter: "blur(0px)" }}
                 animate={{ opacity: 1, backdropFilter: "blur(8px)" }}
                 className="absolute inset-0 bg-white/90 flex flex-col items-center justify-center z-40 p-8 text-center"
               >
-                <motion.div 
+                <motion.div
                   initial={{ scale: 0.5, opacity: 0 }}
                   animate={{ scale: 1, opacity: 1 }}
                   transition={{ delay: 0.2, type: "spring" }}
@@ -700,23 +833,23 @@ export default function App() {
                 >
                   <Target size={64} strokeWidth={2.5} />
                 </motion.div>
-                
-                <motion.h2 
+
+                <motion.h2
                   initial={{ y: 20, opacity: 0 }}
                   animate={{ y: 0, opacity: 1 }}
                   transition={{ delay: 0.3 }}
                   className="text-5xl font-black text-gray-900 mb-3 tracking-tight"
                 >
-                  练习完成！
+                  {t.completion?.title || '练习完成！'}
                 </motion.h2>
-                
-                <motion.p 
+
+                <motion.p
                   initial={{ y: 20, opacity: 0 }}
                   animate={{ y: 0, opacity: 1 }}
                   transition={{ delay: 0.4 }}
                   className="text-gray-500 mb-4 font-medium"
                 >
-                  您的进步已成功保存至本地账户。
+                  {t.completion?.saved || '您的进步已成功保存至本地账户。'}
                 </motion.p>
 
                 <motion.p
@@ -725,11 +858,11 @@ export default function App() {
                   transition={{ delay: 0.45 }}
                   className="text-sm text-blue-600 mb-12 font-bold tracking-wide"
                 >
-                  按空格键或点击按钮，继续当前分类的随机练习
+                  {t.completion?.continue || '按空格键或点击按钮，继续当前分类的随机练习'}
                 </motion.p>
-                
+
                 <div className="flex gap-20 mb-16">
-                  <motion.div 
+                  <motion.div
                     initial={{ y: 20, opacity: 0 }}
                     animate={{ y: 0, opacity: 1 }}
                     transition={{ delay: 0.5 }}
@@ -738,18 +871,18 @@ export default function App() {
                     <div className="text-6xl font-mono font-black text-blue-600 tabular-nums">{practiceMode === 'time-challenge' ? cumulativeWpm : wpm}</div>
                     <div className="text-[11px] uppercase tracking-[0.3em] text-gray-400 mt-3 font-black">WPM</div>
                   </motion.div>
-                  <motion.div 
+                  <motion.div
                     initial={{ y: 20, opacity: 0 }}
                     animate={{ y: 0, opacity: 1 }}
                     transition={{ delay: 0.6 }}
                     className="text-center"
                   >
                     <div className="text-6xl font-mono font-black text-blue-600 tabular-nums">{accuracy}%</div>
-                    <div className="text-[11px] uppercase tracking-[0.3em] text-gray-400 mt-3 font-black">准确率</div>
+                    <div className="text-[11px] uppercase tracking-[0.3em] text-gray-400 mt-3 font-black">{t.stats?.accuracy || '准确率'}</div>
                   </motion.div>
                 </div>
-                
-                <motion.button 
+
+                <motion.button
                   initial={{ y: 20, opacity: 0 }}
                   animate={{ y: 0, opacity: 1 }}
                   transition={{ delay: 0.7 }}
@@ -758,7 +891,7 @@ export default function App() {
                   onClick={reset}
                   className="bg-blue-600 text-white px-12 py-5 rounded-2xl font-black hover:bg-blue-700 transition-all shadow-2xl shadow-blue-200 flex items-center gap-4 text-lg"
                 >
-                  <RefreshCw size={24} /> 继续练习
+                  <RefreshCw size={24} /> {t.completion?.continueButton || '继续练习'}
                 </motion.button>
               </motion.div>
             )}
@@ -794,8 +927,8 @@ export default function App() {
           setPracticeMode('time-challenge');
           setTimeChallengeDuration(duration);
           setTimeRemaining(duration);
-          setTimeChallengeTotalChars(0); // Reset total chars counter when starting new challenge
-          setTimeChallengeStartTime(Date.now()); // Set the challenge start time
+          setTimeChallengeTotalChars(0);
+          setTimeChallengeStartTime(Date.now());
           setCumulativeWpm(0);
           setShowTimeChallengeModal(false);
           reset();
@@ -835,6 +968,79 @@ export default function App() {
         onClose={() => setShowProgressModal(false)}
         dailyRecords={currentUser?.dailyRecords || []}
       />
+
+      {/* Phase 2: Settings Modal */}
+      <SettingsModal
+        isOpen={showSettingsModal}
+        onClose={() => setShowSettingsModal(false)}
+      />
+
+      {/* Phase 2: Achievements Modal */}
+      <AchievementsModal
+        isOpen={showAchievementsModal}
+        onClose={() => setShowAchievementsModal(false)}
+      />
+
+      {/* Phase 2: Achievement Unlock Modal */}
+      <AchievementUnlockModal
+        achievement={newlyUnlocked.length > 0 ? newlyUnlocked[0] : null}
+        isOpen={newlyUnlocked.length > 0}
+        onClose={clearNewlyUnlocked}
+      />
     </div>
+  );
+}
+
+// Main App component with providers
+export default function App() {
+  const [currentUser, setCurrentUser] = useState<LocalUser | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Load user data on mount
+  useEffect(() => {
+    const savedUsers = localStorage.getItem('typing_users');
+    const lastUserId = localStorage.getItem('last_user_id');
+    if (savedUsers && lastUserId) {
+      const parsed = JSON.parse(savedUsers);
+      const migrated = parsed.map((u: any) => migrateUserData(u));
+      const user = migrated.find((u: LocalUser) => u.id === lastUserId);
+      if (user) {
+        setCurrentUser(user);
+      }
+    }
+    setIsLoading(false);
+  }, []);
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-[#f8f9fa] flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600" />
+      </div>
+    );
+  }
+
+  return (
+    <I18nProvider>
+      <ProgressProvider
+        initialProgress={currentUser?.progress}
+        onProgressUpdate={(progress) => {
+          // Progress is saved via user state in AppContent
+        }}
+      >
+        <AchievementProvider
+          initialAchievements={currentUser?.achievements}
+          onAchievementsUpdate={(achievements) => {
+            // Achievements are saved via user state in AppContent
+          }}
+          onXPGained={(amount) => {
+            // XP is added via addXP in AppContent
+          }}
+        >
+          <ThemeProvider currentLevel={currentUser?.progress?.currentLevel || 1}>
+            <AppContent />
+          </ThemeProvider>
+        </AchievementProvider>
+      </ProgressProvider>
+    </I18nProvider>
   );
 }
