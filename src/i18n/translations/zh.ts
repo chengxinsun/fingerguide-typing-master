@@ -7,7 +7,8 @@ export const zhTranslations = {
   stats: { avgWpm: '平均速度', avgAccuracy: '平均准确率', recentSessions: '最近练习', errorHeatmap: '错误热力图', progressTrend: '进度趋势', clickToExpand: '点击展开', noHeatmapData: '完成练习查看错误模式', noProgressData: '每日练习查看进度' },
   settings: { title: '设置', language: '语言', theme: '主题', pet: '宠物', selectPet: '选择宠物', selectLanguage: '选择语言', chinese: '中文', english: 'English' },
   achievements: {
-    title: '成就', unlocked: '已解锁', locked: '未解锁', reward: '奖励', xp: 'XP',
+    title: '成就', unlocked: '已解锁', locked: '未解锁', reward: '奖励', xp: 'XP', progress: '进度', congrats: '恭喜！', autoDismiss: '几秒后自动关闭...',
+    all: '全部', milestone: '里程碑', streak: '连续', accuracy: '精准', overallProgress: '总体进度', noAchievements: '暂无成就',
     first_try: { name: '初次尝试', description: '完成第1次练习' },
     centurion: { name: '百字先锋', description: '累计输入100字符' },
     thousand_master: { name: '千字达人', description: '累计输入1,000字符' },

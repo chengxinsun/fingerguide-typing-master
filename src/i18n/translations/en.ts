@@ -7,7 +7,8 @@ export const enTranslations = {
   stats: { avgWpm: 'Average Speed', avgAccuracy: 'Average Accuracy', recentSessions: 'Recent Sessions', errorHeatmap: 'Error Heatmap', progressTrend: 'Progress Trend', clickToExpand: 'Click to expand', noHeatmapData: 'Complete practice to view error patterns', noProgressData: 'Practice daily to view progress' },
   settings: { title: 'Settings', language: 'Language', theme: 'Theme', pet: 'Pet', selectPet: 'Select Pet', selectLanguage: 'Select Language', chinese: '中文', english: 'English' },
   achievements: {
-    title: 'Achievements', unlocked: 'Unlocked', locked: 'Locked', reward: 'Reward', xp: 'XP',
+    title: 'Achievements', unlocked: 'Unlocked', locked: 'Locked', reward: 'Reward', xp: 'XP', progress: 'Progress', congrats: 'Congratulations!', autoDismiss: 'Auto-closing in a few seconds...',
+    all: 'All', milestone: 'Milestones', streak: 'Streaks', accuracy: 'Accuracy', overallProgress: 'Overall Progress', noAchievements: 'No achievements found',
     first_try: { name: 'First Try', description: 'Complete your first practice session' },
     centurion: { name: 'Centurion', description: 'Type 100 characters in total' },
     thousand_master: { name: 'Thousand Master', description: 'Type 1,000 characters in total' },
