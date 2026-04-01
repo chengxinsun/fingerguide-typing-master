@@ -40,6 +40,26 @@ export interface PracticeItem {
   category: Category;
 }
 
+export type PracticeMode = 'normal' | 'time-challenge' | 'custom';
+
+export interface DailyRecord {
+  date: string;
+  avgWpm: number;
+  avgAccuracy: number;
+  sessionCount: number;
+}
+
+export interface ExtendedUserStats {
+  keyMistakes: Record<string, number>;
+  dailyRecords: DailyRecord[];
+}
+
+export const TIME_CHALLENGE_OPTIONS = [
+  { value: 60, label: '1 Minute' },
+  { value: 180, label: '3 Minutes' },
+  { value: 300, label: '5 Minutes' },
+] as const;
+
 export const PRACTICE_TEXTS: PracticeItem[] = [
   // Basic
   { en: "The quick brown fox jumps over the lazy dog.", zh: "敏捷的棕色狐狸跳过了那只懒狗。", category: "Basic" },
