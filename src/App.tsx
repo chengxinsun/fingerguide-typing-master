@@ -60,6 +60,19 @@ export default function App() {
   const [showProgressModal, setShowProgressModal] = useState(false);
   const [mistakeKeys, setMistakeKeys] = useState<Record<string, number>>({});
   const [timeChallengeTotalChars, setTimeChallengeTotalChars] = useState(0);
+  const [timeChallengeStartTime, setTimeChallengeStartTime] = useState<number | null>(null);
+  const [cumulativeWpm, setCumulativeWpm] = useState(0);
+  const timeChallengeTotalCharsRef = useRef(0);
+  const userInputRef = useRef("");
+
+  // Keep refs in sync with state
+  useEffect(() => {
+    timeChallengeTotalCharsRef.current = timeChallengeTotalChars;
+  }, [timeChallengeTotalChars]);
+
+  useEffect(() => {
+    userInputRef.current = userInput;
+  }, [userInput]);
 
   const filteredTexts = PRACTICE_TEXTS.filter(t => t.category === selectedCategory);
   const currentPractice = practiceMode === 'custom' && customText
@@ -147,8 +160,8 @@ export default function App() {
       const nextIndex = Math.floor(Math.random() * filteredTexts.length);
       setCurrentTextIndex(nextIndex);
       setUserInput('');
-      setStartTime(Date.now()); // Reset start time for WPM calculation of new text
-      setWpm(0);
+      setStartTime(Date.now()); // Reset start time for accuracy calculation of new text
+      setWpm(0); // Reset current text WPM, cumulative is tracked separately
       setAccuracy(100);
       setIsFinished(false);
       setMistakes(0);
@@ -172,6 +185,9 @@ export default function App() {
     if (!currentUser || !startTime) return;
     const timeElapsed = (Date.now() - startTime) / 1000;
 
+    // In time challenge mode, use cumulative WPM for the session record
+    const sessionWpm = practiceMode === 'time-challenge' ? cumulativeWpm || wpm : wpm;
+
     const today = getTodayString();
     const existingRecord = currentUser.dailyRecords?.find((r: DailyRecord) => r.date === today);
 
@@ -182,7 +198,7 @@ export default function App() {
         r.date === today
           ? {
               ...r,
-              avgWpm: Math.round((r.avgWpm * r.sessionCount + wpm) / totalSessions),
+              avgWpm: Math.round((r.avgWpm * r.sessionCount + sessionWpm) / totalSessions),
               avgAccuracy: Math.round((r.avgAccuracy * r.sessionCount + accuracy) / totalSessions),
               sessionCount: totalSessions,
             }
@@ -191,7 +207,7 @@ export default function App() {
     } else {
       updatedDailyRecords = [
         ...updatedDailyRecords,
-        { date: today, avgWpm: wpm, avgAccuracy: accuracy, sessionCount: 1 },
+        { date: today, avgWpm: sessionWpm, avgAccuracy: accuracy, sessionCount: 1 },
       ];
     }
 
@@ -203,7 +219,7 @@ export default function App() {
     });
 
     const newSession: PracticeSession = {
-      wpm,
+      wpm: sessionWpm,
       accuracy,
       timestamp: Date.now()
     };
@@ -213,7 +229,7 @@ export default function App() {
         const recent = u.recentSessions || [];
         return {
           ...u,
-          totalWpm: u.totalWpm + wpm,
+          totalWpm: u.totalWpm + sessionWpm,
           totalAccuracy: u.totalAccuracy + accuracy,
           totalTime: u.totalTime + timeElapsed,
           sessionCount: u.sessionCount + 1,
@@ -308,6 +324,8 @@ export default function App() {
             setMistakeKeys({});
             setTimeRemaining(timeChallengeDuration);
             setTimeChallengeTotalChars(0); // Reset total chars counter
+            setTimeChallengeStartTime(Date.now()); // Reset challenge start time
+            setCumulativeWpm(0);
           } else {
             reset();
           }
@@ -348,12 +366,13 @@ export default function App() {
               const nextIndex = Math.floor(Math.random() * filteredTexts.length);
               setCurrentTextIndex(nextIndex);
               setUserInput('');
+              setStartTime(Date.now()); // Reset for accuracy tracking of new text
               setWpm(0);
               setAccuracy(100);
               setMistakes(0);
               // Accumulate total characters typed
               setTimeChallengeTotalChars(prev => prev + newInput.length);
-              // Note: Don't reset timer or startTime here
+              // Note: Don't reset timer or timeChallengeStartTime here - they continue
             } else {
               setIsFinished(true);
             }
@@ -386,17 +405,35 @@ export default function App() {
     }
   }, [startTime, isFinished, userInput, text]);
 
+  // Cumulative WPM calculation for time challenge mode
+  useEffect(() => {
+    if (practiceMode === 'time-challenge' && timeChallengeStartTime && !isFinished) {
+      const interval = setInterval(() => {
+        const totalElapsedMinutes = (Date.now() - timeChallengeStartTime) / 1000 / 60;
+        // Use refs to get latest values
+        const totalCharsTyped = timeChallengeTotalCharsRef.current + userInputRef.current.length;
+        const newCumulativeWpm = totalElapsedMinutes > 0
+          ? Math.round((totalCharsTyped / 5) / totalElapsedMinutes) || 0
+          : 0;
+        setCumulativeWpm(newCumulativeWpm);
+      }, 500);
+      return () => clearInterval(interval);
+    }
+  }, [practiceMode, timeChallengeStartTime, isFinished]);
+
   // Time challenge countdown
   useEffect(() => {
-    if (practiceMode === 'time-challenge' && startTime && !isFinished) {
+    if (practiceMode === 'time-challenge' && timeChallengeStartTime && !isFinished) {
       const timer = setInterval(() => {
-        const elapsed = Math.floor((Date.now() - startTime) / 1000);
+        const elapsed = Math.floor((Date.now() - timeChallengeStartTime) / 1000);
         const remaining = timeChallengeDuration - elapsed;
         if (remaining <= 0) {
           // Calculate final WPM based on total characters typed during the challenge
-          const totalChars = timeChallengeTotalChars + userInput.length;
+          // Use refs to get latest values
+          const totalChars = timeChallengeTotalCharsRef.current + userInputRef.current.length;
           const totalMinutes = timeChallengeDuration / 60;
           const finalWpm = Math.round((totalChars / 5) / totalMinutes) || 0;
+          setCumulativeWpm(finalWpm);
           setWpm(finalWpm);
           setIsFinished(true);
           setTimeRemaining(0);
@@ -406,7 +443,7 @@ export default function App() {
       }, 1000);
       return () => clearInterval(timer);
     }
-  }, [practiceMode, startTime, isFinished, timeChallengeDuration]);
+  }, [practiceMode, timeChallengeStartTime, isFinished, timeChallengeDuration]);
 
   if (!currentUser) {
     return (
@@ -551,7 +588,9 @@ export default function App() {
             )}
             <div className="flex flex-col items-center">
               <span className="text-[9px] uppercase tracking-widest text-gray-400 font-bold">Speed</span>
-              <span className="text-lg font-mono font-bold text-gray-700">{wpm} <span className="text-[10px] font-normal text-gray-400">WPM</span></span>
+              <span className="text-lg font-mono font-bold text-gray-700">
+                {practiceMode === 'time-challenge' ? cumulativeWpm : wpm} <span className="text-[10px] font-normal text-gray-400">WPM</span>
+              </span>
             </div>
             <div className="flex flex-col items-center">
               <span className="text-[9px] uppercase tracking-widest text-gray-400 font-bold">Accuracy</span>
@@ -696,7 +735,7 @@ export default function App() {
                     transition={{ delay: 0.5 }}
                     className="text-center"
                   >
-                    <div className="text-6xl font-mono font-black text-blue-600 tabular-nums">{wpm}</div>
+                    <div className="text-6xl font-mono font-black text-blue-600 tabular-nums">{practiceMode === 'time-challenge' ? cumulativeWpm : wpm}</div>
                     <div className="text-[11px] uppercase tracking-[0.3em] text-gray-400 mt-3 font-black">WPM</div>
                   </motion.div>
                   <motion.div 
@@ -756,6 +795,8 @@ export default function App() {
           setTimeChallengeDuration(duration);
           setTimeRemaining(duration);
           setTimeChallengeTotalChars(0); // Reset total chars counter when starting new challenge
+          setTimeChallengeStartTime(Date.now()); // Set the challenge start time
+          setCumulativeWpm(0);
           setShowTimeChallengeModal(false);
           reset();
         }}

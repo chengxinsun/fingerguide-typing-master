@@ -60,6 +60,8 @@ export const CustomTextModal: React.FC<CustomTextModalProps> = ({
           <textarea
             value={text}
             onChange={(e) => setText(e.target.value.slice(0, MAX_LENGTH))}
+            onKeyDown={(e) => e.stopPropagation()}
+            onKeyUp={(e) => e.stopPropagation()}
             placeholder="Paste or type your text here..."
             className="w-full h-64 p-4 rounded-xl border-2 border-gray-100 focus:border-blue-500 outline-none resize-none font-mono text-sm"
           />
