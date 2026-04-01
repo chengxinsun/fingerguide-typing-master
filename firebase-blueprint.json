@@ -1,0 +1,43 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "Stores user statistics and profile information.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Unique user ID from Firebase Auth." },
+        "displayName": { "type": "string", "description": "User's display name." },
+        "email": { "type": "string", "description": "User's email address." },
+        "totalWpm": { "type": "number", "description": "Cumulative WPM across all sessions." },
+        "totalAccuracy": { "type": "number", "description": "Average accuracy across all sessions." },
+        "totalTime": { "type": "number", "description": "Total practice time in seconds." },
+        "sessionCount": { "type": "integer", "description": "Total number of completed sessions." }
+      },
+      "required": ["uid", "displayName", "email"]
+    },
+    "Session": {
+      "title": "Practice Session",
+      "description": "Stores results of a single typing practice session.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "UID of the user who performed the session." },
+        "wpm": { "type": "number", "description": "WPM achieved in this session." },
+        "accuracy": { "type": "number", "description": "Accuracy achieved in this session." },
+        "timeElapsed": { "type": "number", "description": "Time taken in seconds." },
+        "category": { "type": "string", "description": "Category of the practice text." },
+        "timestamp": { "type": "string", "format": "date-time", "description": "When the session was completed." }
+      },
+      "required": ["uid", "wpm", "accuracy", "timeElapsed", "category", "timestamp"]
+    }
+  },
+  "firestore": {
+    "/users/{uid}": {
+      "schema": "User",
+      "description": "User profile and statistics."
+    },
+    "/sessions/{sessionId}": {
+      "schema": "Session",
+      "description": "Individual practice session records."
+    }
+  }
+}
