@@ -1,6 +1,9 @@
 import React from 'react';
 import { motion } from 'motion/react';
-import { Zap, Target, Timer, BarChart3 } from 'lucide-react';
+import { Zap, Target, Timer, BarChart3, Keyboard, TrendingUp } from 'lucide-react';
+import { HeatmapKeyboard } from './HeatmapKeyboard';
+import { ProgressChart } from './ProgressChart';
+import { DailyRecord } from '../constants';
 
 interface PracticeSession {
   wpm: number;
@@ -14,12 +17,28 @@ interface StatsProps {
   totalTime: number;
   sessionCount: number;
   recentSessions?: PracticeSession[];
+  keyMistakes?: Record<string, number>;
+  dailyRecords?: DailyRecord[];
+  onOpenHeatmap?: () => void;
+  onOpenProgress?: () => void;
 }
 
-export const Stats: React.FC<StatsProps> = ({ totalWpm, totalAccuracy, totalTime, sessionCount, recentSessions }) => {
+export const Stats: React.FC<StatsProps> = ({ 
+  totalWpm, 
+  totalAccuracy, 
+  totalTime, 
+  sessionCount, 
+  recentSessions,
+  keyMistakes = {},
+  dailyRecords = [],
+  onOpenHeatmap,
+  onOpenProgress,
+}) => {
   const avgWpm = sessionCount > 0 ? Math.round(totalWpm / sessionCount) : 0;
   const avgAccuracy = sessionCount > 0 ? Math.round(totalAccuracy / sessionCount) : 0;
   const timeInMinutes = Math.round(totalTime / 60);
+  const hasHeatmapData = Object.keys(keyMistakes).length > 0;
+  const hasProgressData = dailyRecords.length > 0;
 
   const formatDistanceToNow = (timestamp: number) => {
     const seconds = Math.floor((Date.now() - timestamp) / 1000);
@@ -76,6 +95,53 @@ export const Stats: React.FC<StatsProps> = ({ totalWpm, totalAccuracy, totalTime
           <div className="text-2xl font-mono font-bold text-gray-800">{sessionCount}</div>
           <div className="text-[10px] uppercase tracking-widest text-gray-400 font-bold">Sessions</div>
         </motion.div>
+      </div>
+
+      {/* Analytics Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Heatmap Card */}
+        <motion.button
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.4 }}
+          onClick={onOpenHeatmap}
+          className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow text-left"
+        >
+          <div className="flex items-center justify-between mb-3">
+            <div className="text-orange-600"><Keyboard size={20} /></div>
+            <span className="text-xs text-gray-400">Click to expand</span>
+          </div>
+          <div className="text-sm font-bold text-gray-800 mb-2">Error Heatmap</div>
+          {hasHeatmapData ? (
+            <div className="scale-75 origin-top-left -ml-4 -mt-2">
+              <HeatmapKeyboard keyMistakes={keyMistakes} mini />
+            </div>
+          ) : (
+            <p className="text-xs text-gray-400">Complete sessions to see error patterns</p>
+          )}
+        </motion.button>
+
+        {/* Progress Card */}
+        <motion.button
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.5 }}
+          onClick={onOpenProgress}
+          className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow text-left"
+        >
+          <div className="flex items-center justify-between mb-3">
+            <div className="text-blue-600"><TrendingUp size={20} /></div>
+            <span className="text-xs text-gray-400">Click to expand</span>
+          </div>
+          <div className="text-sm font-bold text-gray-800 mb-2">Progress Trend</div>
+          {hasProgressData ? (
+            <div className="h-20">
+              <ProgressChart data={dailyRecords} days={7} mini />
+            </div>
+          ) : (
+            <p className="text-xs text-gray-400">Practice daily to see your progress</p>
+          )}
+        </motion.button>
       </div>
 
       {recentSessions && recentSessions.length > 0 && (
