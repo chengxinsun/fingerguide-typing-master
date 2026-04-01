@@ -142,16 +142,17 @@ export default function App() {
       setMistakeKeys({});
       setTimeRemaining(null);
     } else if (practiceMode === 'time-challenge') {
+      // In time challenge mode, only switch to next text without resetting timer
       const nextIndex = Math.floor(Math.random() * filteredTexts.length);
       setCurrentTextIndex(nextIndex);
       setUserInput('');
-      setStartTime(null);
+      setStartTime(Date.now()); // Reset start time for WPM calculation of new text
       setWpm(0);
       setAccuracy(100);
       setIsFinished(false);
       setMistakes(0);
       setMistakeKeys({});
-      setTimeRemaining(timeChallengeDuration);
+      // Note: timeRemaining is NOT reset here - timer continues running
     } else {
       const nextIndex = Math.floor(Math.random() * filteredTexts.length);
       setCurrentTextIndex(nextIndex);
@@ -293,7 +294,21 @@ export default function App() {
       if (isFinished) {
         if (e.key === ' ') {
           e.preventDefault();
-          reset();
+          if (practiceMode === 'time-challenge') {
+            // In time challenge mode, space starts a completely new challenge
+            const nextIndex = Math.floor(Math.random() * filteredTexts.length);
+            setCurrentTextIndex(nextIndex);
+            setUserInput('');
+            setStartTime(Date.now());
+            setWpm(0);
+            setAccuracy(100);
+            setIsFinished(false);
+            setMistakes(0);
+            setMistakeKeys({});
+            setTimeRemaining(timeChallengeDuration);
+          } else {
+            reset();
+          }
         }
         return;
       }
@@ -325,7 +340,20 @@ export default function App() {
 
           const newInput = userInput + e.key;
           setUserInput(newInput);
-          if (newInput.length === text.length) setIsFinished(true);
+          if (newInput.length === text.length) {
+            if (practiceMode === 'time-challenge') {
+              // In time challenge, immediately load next text without showing completion screen
+              const nextIndex = Math.floor(Math.random() * filteredTexts.length);
+              setCurrentTextIndex(nextIndex);
+              setUserInput('');
+              setWpm(0);
+              setAccuracy(100);
+              setMistakes(0);
+              // Note: Don't reset timer or startTime here
+            } else {
+              setIsFinished(true);
+            }
+          }
         }
       }
     };
