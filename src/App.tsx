@@ -59,6 +59,7 @@ export default function App() {
   const [showHeatmapModal, setShowHeatmapModal] = useState(false);
   const [showProgressModal, setShowProgressModal] = useState(false);
   const [mistakeKeys, setMistakeKeys] = useState<Record<string, number>>({});
+  const [timeChallengeTotalChars, setTimeChallengeTotalChars] = useState(0);
 
   const filteredTexts = PRACTICE_TEXTS.filter(t => t.category === selectedCategory);
   const currentPractice = practiceMode === 'custom' && customText
@@ -306,6 +307,7 @@ export default function App() {
             setMistakes(0);
             setMistakeKeys({});
             setTimeRemaining(timeChallengeDuration);
+            setTimeChallengeTotalChars(0); // Reset total chars counter
           } else {
             reset();
           }
@@ -349,6 +351,8 @@ export default function App() {
               setWpm(0);
               setAccuracy(100);
               setMistakes(0);
+              // Accumulate total characters typed
+              setTimeChallengeTotalChars(prev => prev + newInput.length);
               // Note: Don't reset timer or startTime here
             } else {
               setIsFinished(true);
@@ -389,6 +393,11 @@ export default function App() {
         const elapsed = Math.floor((Date.now() - startTime) / 1000);
         const remaining = timeChallengeDuration - elapsed;
         if (remaining <= 0) {
+          // Calculate final WPM based on total characters typed during the challenge
+          const totalChars = timeChallengeTotalChars + userInput.length;
+          const totalMinutes = timeChallengeDuration / 60;
+          const finalWpm = Math.round((totalChars / 5) / totalMinutes) || 0;
+          setWpm(finalWpm);
           setIsFinished(true);
           setTimeRemaining(0);
         } else {
@@ -746,6 +755,7 @@ export default function App() {
           setPracticeMode('time-challenge');
           setTimeChallengeDuration(duration);
           setTimeRemaining(duration);
+          setTimeChallengeTotalChars(0); // Reset total chars counter when starting new challenge
           setShowTimeChallengeModal(false);
           reset();
         }}
