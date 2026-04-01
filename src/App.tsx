@@ -5,13 +5,20 @@ import { Stats } from './components/Stats';
 import { KEY_MAP, PRACTICE_TEXTS, Finger, Category, PracticeItem } from './constants';
 import { Keyboard as KeyboardIcon, RefreshCw, Zap, Target, Timer, LogIn, LogOut, User as UserIcon, ChevronDown, BarChart3, UserPlus, Users } from 'lucide-react';
 
-interface LocalUser {
+interface PracticeSession {
+  wpm: number;
+  accuracy: number;
+  timestamp: number;
+}
+
+export interface LocalUser {
   id: string;
   name: string;
   totalWpm: number;
   totalAccuracy: number;
   totalTime: number;
   sessionCount: number;
+  recentSessions?: PracticeSession[];
 }
 
 export default function App() {
@@ -22,7 +29,10 @@ export default function App() {
   const [newUserName, setNewUserName] = useState("");
   
   const [selectedCategory, setSelectedCategory] = useState<Category>('Basic');
-  const [currentTextIndex, setCurrentTextIndex] = useState(0);
+  const [currentTextIndex, setCurrentTextIndex] = useState(() => {
+    const initialFiltered = PRACTICE_TEXTS.filter(t => t.category === 'Basic');
+    return Math.floor(Math.random() * initialFiltered.length);
+  });
   const [userInput, setUserInput] = useState("");
   const [startTime, setStartTime] = useState<number | null>(null);
   const [wpm, setWpm] = useState(0);
@@ -109,12 +119,22 @@ export default function App() {
     
     const updatedUsers = users.map(u => {
       if (u.id === currentUser.id) {
+        const newSession: PracticeSession = {
+          wpm,
+          accuracy,
+          timestamp: Date.now()
+        };
+        
+        const recent = u.recentSessions || [];
+        const updatedRecent = [newSession, ...recent].slice(0, 3);
+        
         return {
           ...u,
           totalWpm: u.totalWpm + wpm,
           totalAccuracy: u.totalAccuracy + accuracy,
           totalTime: u.totalTime + timeElapsed,
-          sessionCount: u.sessionCount + 1
+          sessionCount: u.sessionCount + 1,
+          recentSessions: updatedRecent
         };
       }
       return u;
@@ -318,7 +338,7 @@ export default function App() {
   return (
     <div className="min-h-screen bg-[#f8f9fa] text-gray-800 font-sans selection:bg-blue-100">
       {/* Header */}
-      <header className="border-b border-gray-200 bg-white py-4 px-8 flex justify-between items-center sticky top-0 z-50 shadow-sm">
+      <header className="border-b border-gray-200 bg-white py-4 px-8 flex justify-between items-center sticky top-0 z-[100] shadow-sm">
         <div className="flex items-center gap-6">
           <div className="flex items-center gap-3">
             <div className="bg-blue-600 p-2 rounded-lg text-white">
@@ -333,11 +353,19 @@ export default function App() {
             <button className="flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors text-sm font-medium text-gray-600">
               {selectedCategory} <ChevronDown size={14} />
             </button>
-            <div className="absolute top-full left-0 mt-1 w-48 bg-white border border-gray-100 rounded-xl shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all p-1 z-50">
+            <div className="absolute top-full left-0 mt-1 w-48 bg-white border border-gray-100 rounded-xl shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all p-1 z-[110]">
               {(['Basic', 'KET', 'PET', 'FCE', 'Quotes', 'Classics'] as Category[]).map(cat => (
                 <button 
                   key={cat}
-                  onClick={() => { setSelectedCategory(cat); setCurrentTextIndex(0); setUserInput(""); setStartTime(null); setIsFinished(false); }}
+                  onClick={() => { 
+                    const newFiltered = PRACTICE_TEXTS.filter(t => t.category === cat);
+                    const randomIndex = Math.floor(Math.random() * newFiltered.length);
+                    setSelectedCategory(cat); 
+                    setCurrentTextIndex(randomIndex); 
+                    setUserInput(""); 
+                    setStartTime(null); 
+                    setIsFinished(false); 
+                  }}
                   className={`w-full text-left px-4 py-2 rounded-lg text-sm transition-colors ${selectedCategory === cat ? 'bg-blue-50 text-blue-600 font-bold' : 'hover:bg-gray-50 text-gray-600'}`}
                 >
                   {cat}
@@ -445,7 +473,7 @@ export default function App() {
               <motion.div 
                 initial={{ opacity: 0, backdropFilter: "blur(0px)" }}
                 animate={{ opacity: 1, backdropFilter: "blur(8px)" }}
-                className="absolute inset-0 bg-white/90 flex flex-col items-center justify-center z-50 p-8 text-center"
+                className="absolute inset-0 bg-white/90 flex flex-col items-center justify-center z-40 p-8 text-center"
               >
                 <motion.div 
                   initial={{ scale: 0.5, opacity: 0 }}
