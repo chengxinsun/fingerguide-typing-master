@@ -3,6 +3,7 @@ import { motion } from 'motion/react';
 import { X, TrendingUp } from 'lucide-react';
 import { ProgressChart } from '../ProgressChart';
 import { DailyRecord } from '../../constants';
+import { useI18n } from '../../contexts/I18nContext';
 
 interface ProgressModalProps {
   isOpen: boolean;
@@ -10,29 +11,30 @@ interface ProgressModalProps {
   dailyRecords: DailyRecord[];
 }
 
-const DAYS_OPTIONS = [
-  { value: 7, label: '7 Days' },
-  { value: 30, label: '30 Days' },
-  { value: 90, label: '90 Days' },
-];
-
 export const ProgressModal: React.FC<ProgressModalProps> = ({
   isOpen,
   onClose,
   dailyRecords,
 }) => {
+  const { t } = useI18n();
   const [selectedDays, setSelectedDays] = useState(30);
 
   if (!isOpen) return null;
 
   const hasData = dailyRecords.length > 0;
 
+  const daysOptions = [
+    { value: 7, label: t.progress?.days7 || '7 Days' },
+    { value: 30, label: t.progress?.days30 || '30 Days' },
+    { value: 90, label: t.progress?.days90 || '90 Days' },
+  ];
+
   return (
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+      className="fixed inset-0 bg-black/50 flex items-center justify-center z-[200] p-4"
       onClick={onClose}
     >
       <motion.div
@@ -48,8 +50,8 @@ export const ProgressModal: React.FC<ProgressModalProps> = ({
               <TrendingUp size={24} />
             </div>
             <div>
-              <h2 className="text-2xl font-bold text-gray-900">Progress Trend</h2>
-              <p className="text-sm text-gray-500">Track your typing speed and accuracy over time</p>
+              <h2 className="text-2xl font-bold text-gray-900">{t.progress?.title || 'Progress Trend'}</h2>
+              <p className="text-sm text-gray-500">{t.progress?.subtitle || 'Track your typing speed and accuracy over time'}</p>
             </div>
           </div>
           <button onClick={onClose} className="p-2 text-gray-400 hover:text-gray-600">
@@ -60,7 +62,7 @@ export const ProgressModal: React.FC<ProgressModalProps> = ({
         {hasData ? (
           <>
             <div className="flex justify-center gap-2 mb-6">
-              {DAYS_OPTIONS.map(option => (
+              {daysOptions.map(option => (
                 <button
                   key={option.value}
                   onClick={() => setSelectedDays(option.value)}
@@ -82,11 +84,11 @@ export const ProgressModal: React.FC<ProgressModalProps> = ({
             <div className="flex justify-center gap-8 mt-6">
               <div className="flex items-center gap-2">
                 <div className="w-4 h-1 bg-blue-500 rounded" />
-                <span className="text-sm text-gray-600">WPM (Speed)</span>
+                <span className="text-sm text-gray-600">{t.progress?.wpmLegend || 'WPM (Speed)'}</span>
               </div>
               <div className="flex items-center gap-2">
                 <div className="w-4 h-1 bg-green-500 rounded" />
-                <span className="text-sm text-gray-600">Accuracy %</span>
+                <span className="text-sm text-gray-600">{t.progress?.accuracyLegend || 'Accuracy %'}</span>
               </div>
             </div>
           </>
@@ -95,7 +97,7 @@ export const ProgressModal: React.FC<ProgressModalProps> = ({
             <div className="bg-gray-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
               <TrendingUp size={32} className="text-gray-400" />
             </div>
-            <p className="text-gray-500">No history yet. Your progress will appear here after a few sessions.</p>
+            <p className="text-gray-500">{t.progress?.noData || 'No history yet. Your progress will appear here after a few sessions.'}</p>
           </div>
         )}
       </motion.div>

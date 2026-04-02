@@ -50,6 +50,7 @@ export const PetDisplay: React.FC<PetDisplayProps> = ({
 }) => {
   const { t } = useI18n();
   const [showTooltip, setShowTooltip] = useState(false);
+  const buttonRef = React.useRef<HTMLButtonElement>(null);
 
   const pet = getPetById(petId);
   const stage = getPetStage(growth);
@@ -66,11 +67,17 @@ export const PetDisplay: React.FC<PetDisplayProps> = ({
   const petDescription = petTranslations?.[pet.id]?.description || '';
   const stageName = petTranslations?.[stageKeyMap[stage]] || stage;
 
+  const handleMouseEnter = () => {
+    // Always show tooltip below to avoid blocking content above
+    setShowTooltip(true);
+  };
+
   return (
     <div className="relative inline-block">
       <motion.button
+        ref={buttonRef}
         onClick={onClick}
-        onMouseEnter={() => setShowTooltip(true)}
+        onMouseEnter={handleMouseEnter}
         onMouseLeave={() => setShowTooltip(false)}
         className={`${sizeClass.container} relative flex items-center justify-center rounded-2xl bg-gradient-to-br from-purple-50 to-pink-50 border-2 border-purple-100 hover:border-purple-300 transition-colors cursor-pointer`}
         animate={
@@ -100,13 +107,13 @@ export const PetDisplay: React.FC<PetDisplayProps> = ({
         />
       </motion.button>
 
-      {/* Tooltip */}
+      {/* Tooltip - Always show below */}
       {showTooltip && (
         <motion.div
-          initial={{ opacity: 0, y: 8, scale: 0.95 }}
+          initial={{ opacity: 0, y: -8, scale: 0.95 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, y: 8, scale: 0.95 }}
-          className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-4 py-3 bg-white rounded-xl shadow-lg border border-gray-100 whitespace-nowrap z-50"
+          exit={{ opacity: 0, y: -8, scale: 0.95 }}
+          className="absolute left-1/2 -translate-x-1/2 px-4 py-3 bg-white rounded-xl shadow-lg border border-gray-100 whitespace-nowrap z-[200] top-full mt-2"
         >
           <div className="flex flex-col gap-1">
             <div className="font-bold text-gray-800">{petName}</div>
@@ -129,9 +136,9 @@ export const PetDisplay: React.FC<PetDisplayProps> = ({
             </div>
           </div>
 
-          {/* Tooltip arrow */}
-          <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-1">
-            <div className="w-2 h-2 bg-white border-r border-b border-gray-100 rotate-45" />
+          {/* Tooltip arrow - pointing up */}
+          <div className="absolute left-1/2 -translate-x-1/2 bottom-full -mb-1">
+            <div className="w-2 h-2 bg-white rotate-45 border-l border-t border-gray-100" />
           </div>
         </motion.div>
       )}

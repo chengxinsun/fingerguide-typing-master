@@ -26,17 +26,19 @@ export const AchievementsModal: React.FC<AchievementsModalProps> = ({
   const { achievements } = useAchievements();
   const [filter, setFilter] = React.useState<AchievementType | 'all'>('all');
 
-  if (!isOpen) return null;
-
-  // Calculate overall progress
+  // Calculate overall progress - moved before early return to fix hooks order
   const totalAchievements = ACHIEVEMENTS.length;
-  const unlockedCount = achievements.filter((a) => a.unlockedAt > 0).length;
+  const unlockedCount = Array.isArray(achievements)
+    ? achievements.filter((a) => a && a.unlockedAt > 0).length
+    : 0;
   const progressPercentage = Math.round((unlockedCount / totalAchievements) * 100);
 
-  // Filter achievements
+  // Filter achievements - moved before early return to fix hooks order
   const filteredAchievements = useMemo(() => {
+    if (!Array.isArray(achievements) || achievements.length === 0) return [];
     if (filter === 'all') return achievements;
     return achievements.filter((a) => {
+      if (!a || !a.id) return false;
       const def = ACHIEVEMENTS.find((ad) => ad.id === a.id);
       return def?.type === filter;
     });
@@ -53,6 +55,31 @@ export const AchievementsModal: React.FC<AchievementsModalProps> = ({
     return typeMap[type] || type;
   };
 
+  if (!isOpen) return null;
+
+  // Error state - render error UI inside AnimatePresence
+  if (!Array.isArray(achievements)) {
+    console.error('Achievements is not an array:', achievements);
+    return (
+      <AnimatePresence>
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-[200] p-4"
+          onClick={onClose}
+        >
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full">
+            <p className="text-red-500">Error loading achievements data</p>
+            <button onClick={onClose} className="mt-4 px-4 py-2 bg-blue-500 text-white rounded">
+              Close
+            </button>
+          </div>
+        </motion.div>
+      </AnimatePresence>
+    );
+  }
+
   return (
     <AnimatePresence>
       {isOpen && (
@@ -60,7 +87,7 @@ export const AchievementsModal: React.FC<AchievementsModalProps> = ({
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-[200] p-4"
           onClick={onClose}
         >
           <motion.div
@@ -146,16 +173,19 @@ export const AchievementsModal: React.FC<AchievementsModalProps> = ({
 
             {/* Achievements Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {filteredAchievements.map((achievement, index) => (
-                <motion.div
-                  key={achievement.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.05 }}
-                >
-                  <AchievementCard achievement={achievement} size="medium" showProgress />
-                </motion.div>
-              ))}
+              {filteredAchievements.map((achievement, index) => {
+                if (!achievement || !achievement.id) return null;
+                return (
+                  <motion.div
+                    key={achievement.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.05 }}
+                  >
+                    <AchievementCard achievement={achievement} size="medium" showProgress />
+                  </motion.div>
+                );
+              })}
             </div>
 
             {/* Empty State */}

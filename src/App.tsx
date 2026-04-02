@@ -14,6 +14,8 @@ import { AchievementsModal } from './components/modals/AchievementsModal';
 import { AchievementUnlockModal } from './components/AchievementUnlockModal';
 import { LevelProgress } from './components/LevelProgress';
 import { PetDisplay } from './components/PetDisplay';
+import { LevelUpModal } from './components/LevelUpModal';
+import { ThemeEffects } from './components/ThemeEffects';
 import { PracticeMode, DailyRecord } from './constants';
 import { getTodayString } from './utils/dateUtils';
 
@@ -26,6 +28,7 @@ import { ThemeProvider, useTheme } from './contexts/ThemeContext';
 // Phase 2: Utils
 import { calculateSessionXP } from './utils/xpCalculator';
 import { UserStats } from './constants/achievements';
+import { getLevelByXP } from './constants/levels';
 
 // Default progress for new users
 const defaultProgress: UserProgress = {
@@ -79,9 +82,16 @@ function migrateUserData(user: any): LocalUser {
 // Inner component that uses the contexts
 function AppContent() {
   const { t } = useI18n();
-  const { progress, addXP, addPracticeSession, updateStreak } = useProgress();
+  const { progress, addXP, addPracticeSession, updateStreak, levelUpInfo, clearLevelUpInfo } = useProgress();
   const { achievements, newlyUnlocked, checkAndUnlock, clearNewlyUnlocked } = useAchievements();
   const { theme } = useTheme();
+
+  // Apply theme background to body
+  useEffect(() => {
+    if (theme?.background) {
+      document.body.style.background = theme.background;
+    }
+  }, [theme]);
 
   const audioContextRef = useRef<AudioContext | null>(null);
   const [users, setUsers] = useState<LocalUser[]>([]);
@@ -207,6 +217,14 @@ function AppContent() {
       ).slice(-10);
       setRecentAccuracies(accuracies);
     }
+    // Reset practice state when switching users
+    setUserInput('');
+    setStartTime(null);
+    setWpm(0);
+    setAccuracy(100);
+    setIsFinished(false);
+    setMistakes(0);
+    setShowStats(false);
   };
 
   const handleLogout = () => {
@@ -299,21 +317,43 @@ function AppContent() {
     // Calculate XP and update progress
     const charsTyped = userInput.length;
     const sessionXP = calculateSessionXP(charsTyped, startTime, Date.now(), sessionWpm);
+
+    // Calculate new progress values locally (before async context updates)
+    const newTotalXP = (currentUser.progress?.totalXP || 0) + sessionXP;
+    const newTotalChars = (currentUser.progress?.totalChars || 0) + charsTyped;
+    const newTotalPracticeTime = (currentUser.progress?.totalPracticeTime || 0) + durationMinutes;
+    const alreadyPracticedToday = progress.lastPracticeDate === today;
+    const newCurrentStreak = alreadyPracticedToday ? progress.currentStreak : progress.currentStreak + 1;
+
+    // Calculate unlocked pets based on new level
+    const newLevel = getLevelByXP(newTotalXP);
+    const baseUnlockedPets = currentUser.progress?.unlockedPets || ['snail'];
+    const newUnlockedPetIds = newLevel.unlockedPetIds || [];
+    const mergedUnlockedPets = Array.from(new Set([...baseUnlockedPets, ...newUnlockedPetIds]));
+    const activePet = newUnlockedPetIds.length > 0 && !baseUnlockedPets.includes(newUnlockedPetIds[0])
+      ? newUnlockedPetIds[0]
+      : (progress.activePet || currentUser.progress?.activePet || 'snail');
+
     addXP(sessionXP);
     addPracticeSession(charsTyped, durationMinutes);
     updateStreak();
 
-    // Check achievements
+    // Check achievements - this updates context state and returns XP
     const stats: UserStats = {
       totalSessions: currentUser.sessionCount + 1,
-      totalChars: (currentUser.progress?.totalChars || 0) + charsTyped,
-      totalPracticeTime: (currentUser.progress?.totalPracticeTime || 0) + durationMinutes,
-      currentStreak: progress.currentStreak,
+      totalChars: newTotalChars,
+      totalPracticeTime: newTotalPracticeTime,
+      currentStreak: newCurrentStreak,
       bestWpm: Math.max(sessionWpm, Math.round(currentUser.totalWpm / Math.max(1, currentUser.sessionCount))),
       lastSessionAccuracy: accuracy,
       recentAccuracies: updatedRecentAccuracies,
     };
     checkAndUnlock(stats);
+
+    // Get current achievements from context (they were just updated by checkAndUnlock)
+    // Note: We use currentUser.achievements as base and add any newly unlocked from context
+    const baseAchievements = currentUser.achievements || [];
+    const currentAchievements = achievements.length > 0 ? achievements : baseAchievements;
 
     const updatedUsers = users.map(u => {
       if (u.id === currentUser.id) {
@@ -329,17 +369,17 @@ function AppContent() {
           keyMistakes: updatedKeyMistakes,
           progress: {
             ...(u.progress || defaultProgress),
-            totalXP: progress.totalXP + sessionXP,
-            currentLevel: progress.currentLevel,
-            unlockedPets: progress.unlockedPets,
-            activePet: progress.activePet,
-            currentStreak: progress.currentStreak,
-            longestStreak: progress.longestStreak,
-            lastPracticeDate: progress.lastPracticeDate,
-            totalChars: progress.totalChars + charsTyped,
-            totalPracticeTime: progress.totalPracticeTime + durationMinutes,
+            totalXP: newTotalXP,
+            currentLevel: newLevel.level,
+            unlockedPets: mergedUnlockedPets,
+            activePet: activePet,
+            currentStreak: newCurrentStreak,
+            longestStreak: Math.max(progress.longestStreak, newCurrentStreak),
+            lastPracticeDate: today,
+            totalChars: newTotalChars,
+            totalPracticeTime: newTotalPracticeTime,
           },
-          achievements: achievements,
+          achievements: currentAchievements,
         };
       }
       return u;
@@ -548,15 +588,15 @@ function AppContent() {
           <div className="bg-blue-600 p-4 rounded-2xl text-white mb-6 shadow-lg shadow-blue-200">
             <KeyboardIcon size={48} />
           </div>
-          <h1 className="text-3xl font-black text-gray-900 mb-2">FingerGuide</h1>
-          <p className="text-gray-500 mb-10">Master your typing skills with real-time finger guidance and local progress tracking.</p>
+          <h1 className="text-3xl font-black text-gray-900 mb-2">{t.app?.name || 'FingerGuide'}</h1>
+          <p className="text-gray-500 mb-10">{t.app?.subtitle || 'Master your typing skills with real-time finger guidance and local progress tracking.'}</p>
 
           {isCreatingUser ? (
             <form onSubmit={handleCreateUser} className="w-full flex flex-col gap-4">
               <input
                 autoFocus
                 type="text"
-                placeholder="Enter your name"
+                placeholder={t.user?.enterName || 'Enter your name'}
                 className="w-full px-4 py-3 rounded-xl border-2 border-gray-100 focus:border-blue-600 outline-none transition-all"
                 value={newUserName}
                 onChange={(e) => setNewUserName(e.target.value)}
@@ -566,14 +606,14 @@ function AppContent() {
                   type="submit"
                   className="flex-1 bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 transition-all"
                 >
-                  Create Account
+                  {t.user?.createAccount || 'Create Account'}
                 </button>
                 <button
                   type="button"
                   onClick={() => setIsCreatingUser(false)}
                   className="px-4 py-3 rounded-xl border-2 border-gray-100 font-bold hover:bg-gray-50 transition-all"
                 >
-                  Cancel
+                  {t.mode?.cancel || 'Cancel'}
                 </button>
               </div>
             </form>
@@ -581,7 +621,7 @@ function AppContent() {
             <div className="w-full flex flex-col gap-4">
               {users.length > 0 && (
                 <div className="flex flex-col gap-2 mb-4">
-                  <div className="text-[10px] uppercase tracking-widest text-gray-400 font-bold text-left px-2">Select Account</div>
+                  <div className="text-[10px] uppercase tracking-widest text-gray-400 font-bold text-left px-2">{t.user?.selectAccount || 'Select Account'}</div>
                   <div className="max-h-48 overflow-y-auto flex flex-col gap-2 p-1">
                     {users.map(u => (
                       <button
@@ -600,7 +640,7 @@ function AppContent() {
                 onClick={() => setIsCreatingUser(true)}
                 className="w-full bg-white border-2 border-gray-100 py-4 rounded-2xl font-bold flex items-center justify-center gap-3 hover:bg-gray-50 transition-all shadow-sm"
               >
-                <UserPlus size={20} className="text-blue-600" /> Create New Account
+                <UserPlus size={20} className="text-blue-600" /> {t.user?.createNewAccount || 'Create New Account'}
               </button>
             </div>
           )}
@@ -610,7 +650,11 @@ function AppContent() {
   }
 
   return (
-    <div className="min-h-screen bg-[#f8f9fa] text-gray-800 font-sans selection:bg-blue-100">
+    <div
+      className="min-h-screen text-gray-800 font-sans selection:bg-blue-100 relative z-0"
+      style={{ background: 'transparent' }}
+    >
+      <ThemeEffects />
       {/* Header */}
       <header className="border-b border-gray-200 bg-white py-4 px-8 flex justify-between items-center sticky top-0 z-[100] shadow-sm">
         <div className="flex items-center gap-6">
@@ -672,37 +716,48 @@ function AppContent() {
           <div className="hidden md:flex gap-6">
             {practiceMode === 'time-challenge' && timeRemaining !== null && (
               <div className="flex flex-col items-center">
-                <span className="text-[9px] uppercase tracking-widest text-gray-400 font-bold">Time</span>
+                <span className="text-[9px] uppercase tracking-widest text-gray-400 font-bold">{t.practice?.time || 'Time'}</span>
                 <span className={`text-lg font-mono font-bold ${timeRemaining < 10 ? 'text-red-600' : 'text-gray-700'}`}>
                   {Math.floor(timeRemaining / 60)}:{String(timeRemaining % 60).padStart(2, '0')}
                 </span>
               </div>
             )}
             <div className="flex flex-col items-center">
-              <span className="text-[9px] uppercase tracking-widest text-gray-400 font-bold">Speed</span>
+              <span className="text-[9px] uppercase tracking-widest text-gray-400 font-bold">{t.practice?.speed || 'Speed'}</span>
               <span className="text-lg font-mono font-bold text-gray-700">
                 {practiceMode === 'time-challenge' ? cumulativeWpm : wpm} <span className="text-[10px] font-normal text-gray-400">WPM</span>
               </span>
             </div>
             <div className="flex flex-col items-center">
-              <span className="text-[9px] uppercase tracking-widest text-gray-400 font-bold">Accuracy</span>
+              <span className="text-[9px] uppercase tracking-widest text-gray-400 font-bold">{t.practice?.accuracy || 'Accuracy'}</span>
               <span className="text-lg font-mono font-bold text-gray-700">{accuracy}%</span>
             </div>
           </div>
 
           <div className="h-6 w-px bg-gray-200" />
 
-          {/* Phase 2: Level Progress */}
+          {/* Phase 2: Level Progress - Use currentUser data directly */}
           <div className="hidden lg:flex">
-            <LevelProgress size="small" showDetails={false} />
+            <div className="flex items-center gap-2">
+              <span className="text-2xl">{currentUser?.progress?.currentLevel ? getLevelByXP(currentUser.progress.totalXP).emoji : '🐌'}</span>
+              <div className="flex flex-col">
+                <span className="font-bold text-gray-800 text-sm">Lv.{currentUser?.progress?.currentLevel || 1}</span>
+                <div className="w-20 h-2 bg-gray-100 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-blue-500 rounded-full"
+                    style={{ width: `${currentUser?.progress?.totalXP ? ((currentUser.progress.totalXP - getLevelByXP(currentUser.progress.totalXP).minXP) / (getLevelByXP(currentUser.progress.totalXP).maxXP === Infinity ? 100 : getLevelByXP(currentUser.progress.totalXP).maxXP - getLevelByXP(currentUser.progress.totalXP).minXP)) * 100 : 0}%` }}
+                  />
+                </div>
+              </div>
+            </div>
           </div>
 
-          {/* Phase 2: Pet Display */}
-          {progress.activePet && (
+          {/* Phase 2: Pet Display - Use currentUser data directly */}
+          {currentUser?.progress?.activePet && (
             <div className="hidden lg:block">
               <PetDisplay
-                petId={progress.activePet}
-                growth={Math.min(progress.totalChars / 10, 100)}
+                petId={currentUser.progress.activePet}
+                growth={Math.min((currentUser.progress.totalChars || 0) / 10, 100)}
                 size="small"
                 onClick={() => setShowSettingsModal(true)}
               />
@@ -739,7 +794,7 @@ function AppContent() {
             <div className="flex items-center gap-3 pl-3 border-l border-gray-100">
               <div className="flex flex-col items-end">
                 <span className="text-xs font-bold text-gray-700">{currentUser.name}</span>
-                <span className="text-[9px] text-gray-400 uppercase tracking-tighter">Local Account</span>
+                <span className="text-[9px] text-gray-400 uppercase tracking-tighter">{t.account?.localAccount || 'Local Account'}</span>
               </div>
               <button onClick={handleLogout} className="p-2 text-gray-400 hover:text-red-500 transition-colors" title="Switch Account">
                 <LogOut size={18} />
@@ -910,12 +965,12 @@ function AppContent() {
       <footer className="max-w-5xl mx-auto py-16 px-6 border-t border-gray-100 mt-12 flex flex-col items-center gap-8">
         <div className="flex items-center gap-3 opacity-30">
           <KeyboardIcon size={20} />
-          <span className="text-sm font-bold tracking-widest uppercase">FingerGuide Typing Master</span>
+          <span className="text-sm font-bold tracking-widest uppercase">{t.footer?.title || 'FingerGuide Typing Master'}</span>
         </div>
         <div className="flex gap-12 text-[10px] uppercase tracking-widest text-gray-400 font-bold">
-          <span>Focus on Accuracy</span>
-          <span>Build Muscle Memory</span>
-          <span>Daily Practice</span>
+          <span>{t.footer?.focusOnAccuracy || 'Focus on Accuracy'}</span>
+          <span>{t.footer?.buildMuscleMemory || 'Build Muscle Memory'}</span>
+          <span>{t.footer?.dailyPractice || 'Daily Practice'}</span>
         </div>
       </footer>
 
@@ -987,6 +1042,14 @@ function AppContent() {
         isOpen={newlyUnlocked.length > 0}
         onClose={clearNewlyUnlocked}
       />
+
+      {/* Phase 2: Level Up Modal */}
+      <LevelUpModal
+        newLevel={levelUpInfo?.newLevel || 0}
+        unlockedPetId={levelUpInfo?.unlockedPetId || null}
+        isOpen={!!levelUpInfo}
+        onClose={clearLevelUpInfo}
+      />
     </div>
   );
 }
@@ -1022,12 +1085,14 @@ export default function App() {
   return (
     <I18nProvider>
       <ProgressProvider
-        initialProgress={currentUser?.progress}
+        key={`progress-${currentUser?.id || 'guest'}`}
+        initialProgress={currentUser?.progress ? { ...currentUser.progress } : undefined}
         onProgressUpdate={(progress) => {
           // Progress is saved via user state in AppContent
         }}
       >
         <AchievementProvider
+          key={`achievements-${currentUser?.id || 'guest'}`}
           initialAchievements={currentUser?.achievements}
           onAchievementsUpdate={(achievements) => {
             // Achievements are saved via user state in AppContent
@@ -1036,7 +1101,7 @@ export default function App() {
             // XP is added via addXP in AppContent
           }}
         >
-          <ThemeProvider currentLevel={currentUser?.progress?.currentLevel || 1}>
+          <ThemeProvider>
             <AppContent />
           </ThemeProvider>
         </AchievementProvider>

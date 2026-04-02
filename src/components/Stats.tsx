@@ -50,8 +50,10 @@ export const Stats: React.FC<StatsProps> = ({
   const hasProgressData = dailyRecords.length > 0;
 
   // Calculate unlocked achievements count
-  const unlockedCount = achievements.filter(a => a.unlockedAt > 0).length;
-  const totalAchievements = achievements.length || 12; // Default to 12 if not loaded yet
+  const unlockedCount = Array.isArray(achievements)
+    ? achievements.filter(a => a && a.unlockedAt > 0).length
+    : 0;
+  const totalAchievements = Array.isArray(achievements) ? achievements.length : 12; // Default to 12 if not loaded yet
 
   const formatDistanceToNow = (timestamp: number) => {
     const seconds = Math.floor((Date.now() - timestamp) / 1000);

@@ -1,6 +1,7 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { KEYBOARD_ROWS, Finger } from '../constants';
+import { useI18n } from '../contexts/I18nContext';
 
 interface KeyboardProps {
   activeKey: string | null;
@@ -9,6 +10,8 @@ interface KeyboardProps {
 }
 
 export const Keyboard: React.FC<KeyboardProps> = ({ activeKey, pressedKey, activeFinger }) => {
+  const { t } = useI18n();
+
   const getKeyWidth = (key: string) => {
     switch (key) {
       case 'Backspace': return 'w-20';
@@ -36,13 +39,15 @@ export const Keyboard: React.FC<KeyboardProps> = ({ activeKey, pressedKey, activ
   const getFingerName = (finger: Finger | null): string => {
     if (!finger) return '';
     const [hand, part] = finger.split('-');
-    const handName = hand === 'left' ? '左手' : '右手';
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const fingerTranslations = t.fingers as Record<string, any>;
+    const handName = hand === 'left' ? fingerTranslations?.left || '左手' : fingerTranslations?.right || '右手';
     const fingerNames: Record<string, string> = {
-      pinky: '小指',
-      ring: '无名指',
-      middle: '中指',
-      index: '食指',
-      thumb: '大拇指'
+      pinky: fingerTranslations?.pinky || '小指',
+      ring: fingerTranslations?.ring || '无名指',
+      middle: fingerTranslations?.middle || '中指',
+      index: fingerTranslations?.index || '食指',
+      thumb: fingerTranslations?.thumb || '大拇指'
     };
     return `${handName}${fingerNames[part]}`;
   };

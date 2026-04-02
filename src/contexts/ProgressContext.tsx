@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback, useMemo, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useCallback, useMemo, useEffect, useRef, ReactNode } from 'react';
 import { LevelDefinition, LEVELS, getLevelByXP, getXPProgress } from '../constants/levels';
 
 export interface UserProgress {
@@ -13,6 +13,11 @@ export interface UserProgress {
   totalPracticeTime: number; // in minutes
 }
 
+interface LevelUpInfo {
+  newLevel: number;
+  unlockedPetId: string | null;
+}
+
 interface ProgressContextType {
   progress: UserProgress;
   currentLevel: LevelDefinition;
@@ -22,6 +27,8 @@ interface ProgressContextType {
   updateStreak: () => void;
   unlockPet: (petId: string) => void;
   setActivePet: (petId: string | null) => void;
+  levelUpInfo: LevelUpInfo | null;
+  clearLevelUpInfo: () => void;
 }
 
 // Default progress for new users
@@ -65,6 +72,7 @@ interface ProgressProviderProps {
   children: ReactNode;
   initialProgress?: UserProgress;
   onProgressUpdate?: (progress: UserProgress) => void;
+  key?: string;
 }
 
 export function ProgressProvider({
@@ -78,6 +86,17 @@ export function ProgressProvider({
     }
     return defaultProgress;
   });
+  const [levelUpInfo, setLevelUpInfo] = useState<LevelUpInfo | null>(null);
+
+
+  // Reset progress when initialProgress changes (user switch)
+  useEffect(() => {
+    if (initialProgress) {
+      setProgress({ ...defaultProgress, ...initialProgress });
+    } else {
+      setProgress(defaultProgress);
+    }
+  }, [initialProgress]);
 
   const currentLevel = useMemo(() => {
     return getLevelByXP(progress.totalXP);
@@ -95,6 +114,8 @@ export function ProgressProvider({
   }, [onProgressUpdate]);
 
   const addXP = useCallback((amount: number) => {
+    let levelUpData: LevelUpInfo | null = null;
+
     setProgress(prev => {
       const newTotalXP = prev.totalXP + amount;
       const newLevel = getLevelByXP(newTotalXP);
@@ -106,15 +127,30 @@ export function ProgressProvider({
         currentLevel: newLevel.level,
       };
 
-      // Auto-unlock pets when level increases
+      // Auto-unlock pets and auto-switch when level increases
       if (levelChanged && newLevel.unlockedPetIds.length > 0) {
         const newUnlockedPets = [...prev.unlockedPets];
+        let newlyUnlockedPetId: string | null = null;
+
         newLevel.unlockedPetIds.forEach(petId => {
           if (!newUnlockedPets.includes(petId)) {
             newUnlockedPets.push(petId);
+            newlyUnlockedPetId = petId; // Track the newly unlocked pet
           }
         });
+
         newProgress.unlockedPets = newUnlockedPets;
+
+        // Auto-switch to the newly unlocked pet
+        if (newlyUnlockedPetId) {
+          newProgress.activePet = newlyUnlockedPetId;
+
+          // Store level up data to trigger notification after state update
+          levelUpData = {
+            newLevel: newLevel.level,
+            unlockedPetId: newlyUnlockedPetId,
+          };
+        }
       }
 
       if (onProgressUpdate) {
@@ -122,6 +158,11 @@ export function ProgressProvider({
       }
       return newProgress;
     });
+
+    // Trigger level up notification outside of setProgress callback
+    if (levelUpData) {
+      setLevelUpInfo(levelUpData);
+    }
   }, [onProgressUpdate]);
 
   const addPracticeSession = useCallback((chars: number, durationMinutes: number) => {
@@ -207,6 +248,10 @@ export function ProgressProvider({
     });
   }, [onProgressUpdate]);
 
+  const clearLevelUpInfo = useCallback(() => {
+    setLevelUpInfo(null);
+  }, []);
+
   const value: ProgressContextType = {
     progress,
     currentLevel,
@@ -216,6 +261,8 @@ export function ProgressProvider({
     updateStreak,
     unlockPet,
     setActivePet,
+    levelUpInfo,
+    clearLevelUpInfo,
   };
 
   return (

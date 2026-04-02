@@ -56,12 +56,22 @@ const lockedColors: Record<string, string> = {
   accuracy: 'bg-gray-50 border-gray-200',
 };
 
+// Default/fallback values
+const defaultIcon = <Trophy className="text-gray-500" />;
+const defaultColor = 'bg-gray-50 border-gray-200';
+
 export const AchievementCard: React.FC<AchievementCardProps> = ({
   achievement,
   size = 'medium',
   showProgress = true,
 }) => {
   const { t } = useI18n();
+
+  // Validate achievement data
+  if (!achievement || !achievement.id) {
+    return null;
+  }
+
   const definition = getAchievementById(achievement.id);
   const sizeClass = sizeClasses[size];
 
@@ -75,13 +85,17 @@ export const AchievementCard: React.FC<AchievementCardProps> = ({
   // Get translated achievement name and description
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const achievementTranslations = t.achievements as Record<string, any>;
-  const name = achievementTranslations?.[achievement.id]?.name || achievement.id;
+  const name = achievementTranslations?.[achievement.id]?.name || definition?.id || achievement.id;
   const description = achievementTranslations?.[achievement.id]?.description || '';
+
+  // Get colors with fallback
+  const unlockedColor = typeColors[definition.type] || defaultColor;
+  const lockedColor = lockedColors[definition.type] || defaultColor;
 
   return (
     <motion.div
       className={`relative rounded-xl border-2 transition-all ${
-        isUnlocked ? typeColors[definition.type] : lockedColors[definition.type]
+        isUnlocked ? unlockedColor : lockedColor
       } ${sizeClass.container}`}
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
@@ -111,7 +125,7 @@ export const AchievementCard: React.FC<AchievementCardProps> = ({
           }`}
         >
           {isUnlocked ? (
-            typeIcons[definition.type]
+            typeIcons[definition.type] || defaultIcon
           ) : (
             <Lock size={sizeClass.iconSize} className="text-gray-400" />
           )}

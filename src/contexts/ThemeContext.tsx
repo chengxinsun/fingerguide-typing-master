@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useMemo } from 'react';
 import { ThemeDefinition, THEMES, getThemeById, getThemeByLevel } from '../constants/themes';
+import { useProgress } from './ProgressContext';
 
 interface ThemeContextType {
   theme: ThemeDefinition;
@@ -13,41 +14,44 @@ const STORAGE_KEY = 'typing_theme';
 
 interface ThemeProviderProps {
   children: ReactNode;
-  currentLevel: number;
 }
 
-export function ThemeProvider({ children, currentLevel }: ThemeProviderProps) {
+export function ThemeProvider({ children }: ThemeProviderProps) {
+  const { progress, currentLevel } = useProgress();
+
   // Get available themes based on current level
   const availableThemes = useMemo(() => {
-    return THEMES.filter((theme) => theme.unlockLevel <= currentLevel);
+    return THEMES.filter((theme) => theme.unlockLevel <= currentLevel.level);
   }, [currentLevel]);
 
   // Get initial theme from localStorage or default to highest available
   const getInitialTheme = useCallback((): ThemeDefinition => {
+    const themeByLevel = getThemeByLevel(currentLevel.level);
+
     if (typeof window === 'undefined') {
-      return getThemeByLevel(currentLevel);
+      return themeByLevel;
     }
 
     const storedThemeId = localStorage.getItem(STORAGE_KEY);
     if (storedThemeId) {
       const storedTheme = getThemeById(storedThemeId);
       // Check if the stored theme is still available for the current level
-      if (storedTheme && storedTheme.unlockLevel <= currentLevel) {
+      if (storedTheme && storedTheme.unlockLevel <= currentLevel.level) {
         return storedTheme;
       }
     }
 
     // Return the highest available theme for the current level
-    return getThemeByLevel(currentLevel);
+    return themeByLevel;
   }, [currentLevel]);
 
   const [theme, setThemeState] = useState<ThemeDefinition>(() => getInitialTheme());
 
   // Update theme when level changes (if current theme becomes locked)
   useEffect(() => {
-    if (theme.unlockLevel > currentLevel) {
+    if (theme.unlockLevel > currentLevel.level) {
       // Current theme is now locked, switch to highest available
-      const newTheme = getThemeByLevel(currentLevel);
+      const newTheme = getThemeByLevel(currentLevel.level);
       setThemeState(newTheme);
       if (typeof window !== 'undefined') {
         localStorage.setItem(STORAGE_KEY, newTheme.id);
@@ -57,7 +61,7 @@ export function ThemeProvider({ children, currentLevel }: ThemeProviderProps) {
 
   const setTheme = useCallback((themeId: string) => {
     const newTheme = getThemeById(themeId);
-    if (newTheme && newTheme.unlockLevel <= currentLevel) {
+    if (newTheme && newTheme.unlockLevel <= currentLevel.level) {
       setThemeState(newTheme);
       if (typeof window !== 'undefined') {
         localStorage.setItem(STORAGE_KEY, themeId);

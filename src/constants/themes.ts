@@ -13,61 +13,61 @@ export const THEMES: ThemeDefinition[] = [
   {
     id: 'forest',
     nameKey: 'theme.forest',
-    primary: '#22c55e',
-    secondary: '#16a34a',
-    background: 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)',
-    accent: '#86efac',
-    gradient: 'from-green-500 to-emerald-600',
+    primary: '#065f46', // Deep Forest Green
+    secondary: '#064e3b', // Deep Moss
+    background: 'linear-gradient(160deg, #f0fdf4 0%, #dcfce7 30%, #bbf7d0 60%, #86efac 100%)', // Morning Mist through leaves
+    accent: '#84cc16', // Lively Sprout (Lime)
+    gradient: 'from-emerald-700 via-green-600 to-teal-700',
     unlockLevel: 1,
   },
   {
     id: 'meadow',
     nameKey: 'theme.meadow',
-    primary: '#f472b6',
-    secondary: '#ec4899',
-    background: 'linear-gradient(135deg, #fdf2f8 0%, #fce7f3 100%)',
-    accent: '#f9a8d4',
-    gradient: 'from-pink-400 to-rose-500',
+    primary: '#be185d', // Deep Pink
+    secondary: '#9d174d', // Dark Magenta
+    background: 'linear-gradient(160deg, #fff1f2 0%, #ffe4e6 40%, #fbcfe8 100%)', // Soft morning pink
+    accent: '#fb7185', // Rose
+    gradient: 'from-rose-500 via-pink-500 to-fuchsia-600',
     unlockLevel: 6,
   },
   {
     id: 'desert',
     nameKey: 'theme.desert',
-    primary: '#f97316',
-    secondary: '#ea580c',
-    background: 'linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%)',
-    accent: '#fdba74',
-    gradient: 'from-orange-400 to-amber-500',
+    primary: '#c2410c', // Burnt Orange
+    secondary: '#9a3412', // Rust Red
+    background: 'linear-gradient(160deg, #fff7ed 0%, #ffedd5 30%, #fed7aa 70%, #fdba74 100%)', // Sand dune gradient
+    accent: '#fb923c', // Sunset Orange
+    gradient: 'from-orange-600 via-amber-600 to-red-600',
     unlockLevel: 11,
   },
   {
     id: 'savanna',
     nameKey: 'theme.savanna',
-    primary: '#eab308',
-    secondary: '#ca8a04',
-    background: 'linear-gradient(135deg, #fefce8 0%, #fef9c3 100%)',
-    accent: '#fde047',
-    gradient: 'from-yellow-400 to-amber-500',
+    primary: '#b45309', // Amber Brown
+    secondary: '#92400e', // Dark Earth
+    background: 'linear-gradient(160deg, #fefce8 0%, #fef08a 40%, #fde047 80%, #facc15 100%)', // Golden grass
+    accent: '#eab308', // Sunflower Yellow
+    gradient: 'from-yellow-500 via-amber-500 to-orange-500',
     unlockLevel: 16,
   },
   {
     id: 'sky',
     nameKey: 'theme.sky',
-    primary: '#3b82f6',
-    secondary: '#2563eb',
-    background: 'linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)',
-    accent: '#93c5fd',
-    gradient: 'from-blue-400 to-indigo-500',
+    primary: '#1d4ed8', // Deep Blue
+    secondary: '#1e3a8a', // Night Blue
+    background: 'linear-gradient(160deg, #eff6ff 0%, #bfdbfe 30%, #93c5fd 60%, #60a5fa 100%)', // Clear midday sky
+    accent: '#38bdf8', // Bright Sky Blue
+    gradient: 'from-blue-600 via-sky-500 to-indigo-600',
     unlockLevel: 21,
   },
   {
     id: 'volcano',
     nameKey: 'theme.volcano',
-    primary: '#8b5cf6',
-    secondary: '#7c3aed',
-    background: 'linear-gradient(135deg, #faf5ff 0%, #f3e8ff 100%)',
-    accent: '#c4b5fd',
-    gradient: 'from-violet-500 to-purple-600',
+    primary: '#6d28d9', // Deep Violet
+    secondary: '#5b21b6', // Dark Purple Obsidian
+    background: 'linear-gradient(160deg, #faf5ff 0%, #e9d5ff 40%, #c084fc 80%, #a855f7 100%)', // Magical volcanic glow
+    accent: '#d946ef', // Fuchsia Flame
+    gradient: 'from-purple-700 via-violet-600 to-fuchsia-600',
     unlockLevel: 26,
   },
 ];

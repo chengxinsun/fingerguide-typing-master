@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import { X, FileText } from 'lucide-react';
+import { useI18n } from '../../contexts/I18nContext';
 
 interface CustomTextModalProps {
   isOpen: boolean;
@@ -16,6 +17,7 @@ export const CustomTextModal: React.FC<CustomTextModalProps> = ({
   onClose,
   onStart,
 }) => {
+  const { t } = useI18n();
   const [text, setText] = useState('');
 
   if (!isOpen) return null;
@@ -34,7 +36,7 @@ export const CustomTextModal: React.FC<CustomTextModalProps> = ({
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+      className="fixed inset-0 bg-black/50 flex items-center justify-center z-[200] p-4"
       onClick={onClose}
     >
       <motion.div
@@ -49,7 +51,7 @@ export const CustomTextModal: React.FC<CustomTextModalProps> = ({
             <div className="bg-green-100 p-2 rounded-lg text-green-600">
               <FileText size={24} />
             </div>
-            <h2 className="text-xl font-bold text-gray-900">Practice Your Own Text</h2>
+            <h2 className="text-xl font-bold text-gray-900">{t.mode?.customTitle || 'Practice Your Own Text'}</h2>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
             <X size={24} />
@@ -62,12 +64,12 @@ export const CustomTextModal: React.FC<CustomTextModalProps> = ({
             onChange={(e) => setText(e.target.value.slice(0, MAX_LENGTH))}
             onKeyDown={(e) => e.stopPropagation()}
             onKeyUp={(e) => e.stopPropagation()}
-            placeholder="Paste or type your text here..."
+            placeholder={t.mode?.customPlaceholder || 'Paste or type your text here...'}
             className="w-full h-64 p-4 rounded-xl border-2 border-gray-100 focus:border-blue-500 outline-none resize-none font-mono text-sm"
           />
           <div className="flex justify-between mt-2 text-sm">
             <span className={text.length < MIN_LENGTH ? 'text-red-500' : 'text-gray-400'}>
-              {text.length < MIN_LENGTH && 'Text must be at least 10 characters'}
+              {text.length < MIN_LENGTH && (t.mode?.customMinLength || 'Text must be at least 10 characters')}
             </span>
             <span className="text-gray-400">
               {text.length} / {MAX_LENGTH}
@@ -80,7 +82,7 @@ export const CustomTextModal: React.FC<CustomTextModalProps> = ({
             onClick={onClose}
             className="flex-1 py-3 rounded-xl border-2 border-gray-100 font-bold hover:bg-gray-50 transition-all"
           >
-            Cancel
+            {t.mode?.cancel || 'Cancel'}
           </button>
           <button
             onClick={handleStart}
@@ -91,7 +93,7 @@ export const CustomTextModal: React.FC<CustomTextModalProps> = ({
                 : 'bg-gray-100 text-gray-400 cursor-not-allowed'
             }`}
           >
-            Start Practice
+            {t.mode?.customStart || 'Start Practice'}
           </button>
         </div>
       </motion.div>

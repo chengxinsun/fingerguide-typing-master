@@ -4,6 +4,7 @@ import React, {
   useState,
   useCallback,
   useMemo,
+  useEffect,
   ReactNode,
 } from 'react';
 import {
@@ -12,7 +13,7 @@ import {
   checkAchievements,
   calculateAchievementXP,
 } from '../utils/achievementChecker';
-import { UserStats, getAchievementById } from '../constants/achievements';
+import { UserStats, getAchievementById, ACHIEVEMENTS } from '../constants/achievements';
 
 interface AchievementContextType {
   achievements: AchievementRecord[];
@@ -30,6 +31,7 @@ interface AchievementProviderProps {
   initialAchievements?: AchievementRecord[];
   onAchievementsUpdate?: (achievements: AchievementRecord[]) => void;
   onXPGained?: (amount: number) => void;
+  key?: string;
 }
 
 export function AchievementProvider({
@@ -40,6 +42,25 @@ export function AchievementProvider({
 }: AchievementProviderProps) {
   const [achievements, setAchievements] = useState<AchievementRecord[]>(initialAchievements);
   const [newlyUnlocked, setNewlyUnlocked] = useState<AchievementRecord[]>([]);
+
+  // Reset achievements when initialAchievements changes (user switch)
+  useEffect(() => {
+    setAchievements(initialAchievements);
+    setNewlyUnlocked([]);
+  }, [initialAchievements]);
+
+  // Initialize achievements if empty
+  useEffect(() => {
+    if (achievements.length === 0) {
+      // Create default achievement records (all locked)
+      const defaultAchievements: AchievementRecord[] = ACHIEVEMENTS.map(achievement => ({
+        id: achievement.id,
+        unlockedAt: 0,
+        progress: 0,
+      }));
+      setAchievements(defaultAchievements);
+    }
+  }, []);
 
   const updateAchievements = useCallback(
     (newAchievements: AchievementRecord[]) => {

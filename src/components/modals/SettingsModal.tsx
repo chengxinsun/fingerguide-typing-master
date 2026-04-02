@@ -19,7 +19,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 }) => {
   const { t, language, setLanguage } = useI18n();
   const { theme, setTheme, availableThemes } = useTheme();
-  const { progress, setActivePet } = useProgress();
+  const { progress, currentLevel, setActivePet } = useProgress();
 
   if (!isOpen) return null;
 
@@ -35,14 +35,19 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     setActivePet(petId);
   };
 
-  // Check if pet is unlocked
+  // Check if pet is unlocked - use currentLevel from context which is computed from XP
   const isPetUnlocked = (pet: PetDefinition) => {
-    return progress.unlockedPets.includes(pet.id);
+    // First check if pet is already in unlockedPets array
+    if (progress.unlockedPets.includes(pet.id)) {
+      return true;
+    }
+    // Also check if pet should be unlocked based on current level
+    return pet.unlockLevel <= currentLevel.level;
   };
 
-  // Check if theme is unlocked
+  // Check if theme is unlocked - use currentLevel from context which is computed from XP
   const isThemeUnlocked = (themeDef: ThemeDefinition) => {
-    return themeDef.unlockLevel <= progress.currentLevel;
+    return themeDef.unlockLevel <= currentLevel.level;
   };
 
   // Get theme color class
@@ -79,7 +84,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-[200] p-4"
           onClick={onClose}
         >
           <motion.div
